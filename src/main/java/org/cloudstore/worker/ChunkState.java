@@ -1,4 +1,4 @@
-package org.cloudstore.common;
+package org.cloudstore.worker;
 
 /** Lifecycle states a worker can report for a stored chunk. */
 public enum ChunkState

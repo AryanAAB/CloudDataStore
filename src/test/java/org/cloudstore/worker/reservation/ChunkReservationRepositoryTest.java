@@ -1,6 +1,6 @@
 package org.cloudstore.worker.reservation;
 
-import org.cloudstore.common.ChunkState;
+import org.cloudstore.worker.ChunkState;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;

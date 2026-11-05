@@ -1,4 +1,4 @@
-package org.cloudstore.common;
+package org.cloudstore.worker;
 
 /**
  * Shared application limits that must remain consistent across components.
@@ -10,11 +10,14 @@ public final class Constants
      */
     public static final int MAX_RESERVATION_KEY_LENGTH = 128;
 
+    /** Maximum number of characters accepted for upload and chunk identifiers. */
+    public static final int MAX_RESERVATION_ID_LENGTH = 255;
+
     /**
-     * Message returned when either supplied identifier is not a UUID.
+     * Format for the message returned when an upload or chunk identifier is invalid.
      */
     public static final String INVALID_RESERVATION_IDS =
-            "Upload ID and chunk ID must be valid UUIDs";
+            "Upload ID and chunk ID must be non-empty and no longer than %d characters";
 
     /**
      * Format string for a reservation key length validation message.
@@ -52,7 +55,7 @@ public final class Constants
 
     /** Log template emitted when reservation identifiers fail validation. */
     public static final String LOG_RESERVATION_INVALID_IDS =
-            "Reservation rejected because upload ID or chunk ID is not a valid UUID";
+            "Reservation rejected because an upload ID or chunk ID is invalid";
 
     /** Log template emitted when the reservation key fails validation. */
     public static final String LOG_RESERVATION_INVALID_KEY =

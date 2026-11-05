@@ -17,8 +17,8 @@ public class ChunkReservationId implements Serializable
     /**
      * Creates an identity for the specified upload and chunk.
      *
-     * @param uploadId upload UUID
-     * @param chunkId chunk UUID
+     * @param uploadId upload identifier
+     * @param chunkId chunk identifier
      */
     public ChunkReservationId(String uploadId, String chunkId)
     {
@@ -26,20 +26,20 @@ public class ChunkReservationId implements Serializable
         this.chunkId = chunkId;
     }
 
-    /** Returns the upload UUID in this identity. */
+    /** Returns the upload identifier in this identity. */
     public String getUploadId()
     {
         return uploadId;
     }
 
-    /** Returns the chunk UUID in this identity. */
+    /** Returns the chunk identifier in this identity. */
     public String getChunkId()
     {
         return chunkId;
     }
 
     /**
-     * Compares both UUID values that form this composite identity.
+     * Compares both identifier values that form this composite identity.
      *
      * @param other object to compare
      * @return {@code true} when both IDs match

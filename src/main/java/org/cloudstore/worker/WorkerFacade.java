@@ -1,6 +1,5 @@
 package org.cloudstore.worker;
 
-import org.cloudstore.common.Constants;
 import org.cloudstore.worker.reservation.ReservationResult;
 import org.cloudstore.worker.reservation.WorkerReservationService;
 import org.slf4j.Logger;
@@ -30,8 +29,8 @@ public class WorkerFacade
     /**
      * Reserves a chunk for an upload by delegating to the reservation service.
      *
-     * @param chunkId  UUID assigned to the chunk
-     * @param uploadId UUID assigned to the upload
+     * @param chunkId  identifier assigned to the chunk
+     * @param uploadId identifier assigned to the upload
      * @param key      optional reservation key; may be {@code null}
      * @return a result describing whether the reservation succeeded
      */

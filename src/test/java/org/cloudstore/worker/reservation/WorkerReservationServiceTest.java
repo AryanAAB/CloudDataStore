@@ -1,11 +1,12 @@
 package org.cloudstore.worker.reservation;
 
-import org.cloudstore.common.ChunkState;
-import org.cloudstore.common.Constants;
+import org.cloudstore.worker.ChunkState;
+import org.cloudstore.worker.Constants;
+import org.cloudstore.worker.key.OpaqueStringReservationIdentifierValidator;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,14 +24,21 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class WorkerReservationServiceTest
 {
-    private static final String UPLOAD_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-    private static final String CHUNK_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    private static final String UPLOAD_ID = "upload-2026-alpha";
+    private static final String CHUNK_ID = "chunk-part-A";
 
     @Mock
     private ChunkReservationRepository reservations;
 
-    @InjectMocks
     private WorkerReservationService service;
+
+    @BeforeEach
+    void setUp()
+    {
+        service = new WorkerReservationService(
+                reservations,
+                new OpaqueStringReservationIdentifierValidator());
+    }
 
     @Test
     void createsReservationInReservedStateAndAllowsNullKey()
@@ -54,10 +62,12 @@ class WorkerReservationServiceTest
     @Test
     void rejectsInvalidIdsWithoutAccessingRepository()
     {
-        ReservationResult result = service.reserve("bad-upload-id", CHUNK_ID, null);
+        ReservationResult result = service.reserve(" ", CHUNK_ID, null);
 
         assertThat(result.success()).isFalse();
-        assertThat(result.message()).isEqualTo(Constants.INVALID_RESERVATION_IDS);
+        assertThat(result.message()).isEqualTo(String.format(
+                Constants.INVALID_RESERVATION_IDS,
+                Constants.MAX_RESERVATION_ID_LENGTH));
         verifyNoInteractions(reservations);
     }
 

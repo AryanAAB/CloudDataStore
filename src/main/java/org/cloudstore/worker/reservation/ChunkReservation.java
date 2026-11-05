@@ -1,7 +1,7 @@
 package org.cloudstore.worker.reservation;
 
 import jakarta.persistence.*;
-import org.cloudstore.common.ChunkState;
+import org.cloudstore.worker.ChunkState;
 
 import java.time.Instant;
 
@@ -33,8 +33,8 @@ public class ChunkReservation
     /**
      * Creates a reservation record with its initial state and timestamp.
      *
-     * @param uploadId upload UUID
-     * @param chunkId chunk UUID
+     * @param uploadId upload identifier
+     * @param chunkId chunk identifier
      * @param reservationKey key the master assigned to this reservation
      * @param uploadTime time the worker accepted the reservation
      * @param state current chunk lifecycle state
