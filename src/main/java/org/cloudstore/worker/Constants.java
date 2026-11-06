@@ -13,6 +13,12 @@ public final class Constants
     /** Maximum number of characters accepted for upload and chunk identifiers. */
     public static final int MAX_RESERVATION_ID_LENGTH = 255;
 
+    /** Time a reservation may remain untouched before this worker expires it. */
+    public static final long RESERVATION_TIMEOUT_MILLIS = 60_000L;
+
+    /** Delay between reservation cleanup passes. */
+    public static final long RESERVATION_CLEANER_INTERVAL_MILLIS = 10_000L;
+
     /**
      * Format for the message returned when an upload or chunk identifier is invalid.
      */
@@ -46,40 +52,6 @@ public final class Constants
      */
     public static final String RESERVATION_CONFLICT =
             "Reservation conflicts with an existing record";
-
-    /** Log template emitted when the facade receives a reservation request. */
-    public static final String LOG_RESERVATION_RECEIVED = "Received reserve operation";
-
-    /** Log template emitted when the facade completes a reservation request. */
-    public static final String LOG_RESERVATION_COMPLETED = "Reserve operation completed: success={}";
-
-    /** Log template emitted when reservation identifiers fail validation. */
-    public static final String LOG_RESERVATION_INVALID_IDS =
-            "Reservation rejected because an upload ID or chunk ID is invalid";
-
-    /** Log template emitted when the reservation key fails validation. */
-    public static final String LOG_RESERVATION_INVALID_KEY =
-            "Reservation rejected for upload {} and chunk {} because the key is invalid";
-
-    /** Log template emitted when an identical reservation already exists. */
-    public static final String LOG_RESERVATION_ALREADY_EXISTS =
-            "Reservation already exists for upload {} and chunk {}";
-
-    /** Log template emitted when an existing reservation has a different key. */
-    public static final String LOG_RESERVATION_KEY_MISMATCH =
-            "Reservation rejected because the key does not match for upload {} and chunk {}";
-
-    /** Log template emitted after creating a reservation. */
-    public static final String LOG_RESERVATION_CREATED =
-            "Created reservation for upload {} and chunk {}";
-
-    /** Log template emitted when a concurrent reservation conflicts during persistence. */
-    public static final String LOG_RESERVATION_CONCURRENT_CONFLICT =
-            "Concurrent reservation conflict while saving upload {} and chunk {}";
-
-    /** Log template emitted when a concurrent request matches the persisted reservation. */
-    public static final String LOG_RESERVATION_CONCURRENT_RETRY =
-            "Concurrent reservation resolved as an identical retry for upload {} and chunk {}";
 
     /**
      * Prevents construction of this constants-only utility class.

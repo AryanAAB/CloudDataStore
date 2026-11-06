@@ -19,8 +19,8 @@ public class OpaqueStringReservationIdentifierValidator implements ReservationId
     @Override
     public boolean isValid(String identifier)
     {
-        return identifier == null
-                || identifier.isBlank()
-                || identifier.length() > Constants.MAX_RESERVATION_ID_LENGTH;
+        return identifier != null
+                && !identifier.isBlank()
+                && identifier.length() <= Constants.MAX_RESERVATION_ID_LENGTH;
     }
 }

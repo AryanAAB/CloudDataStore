@@ -82,4 +82,10 @@ public class ChunkReservation
     {
         return state;
     }
+
+    /** Marks this reservation as expired after its reservation timeout elapses. */
+    public void markExpired()
+    {
+        this.state = ChunkState.EXPIRED;
+    }
 }

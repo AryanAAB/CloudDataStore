@@ -48,9 +48,9 @@ public class WorkerReservationService
      */
     public ReservationResult reserve(String uploadId, String chunkId, String key)
     {
-        if (identifierValidator.isValid(uploadId) || identifierValidator.isValid(chunkId))
+        if (!identifierValidator.isValid(uploadId) || !identifierValidator.isValid(chunkId))
         {
-            LOGGER.warn(Constants.LOG_RESERVATION_INVALID_IDS);
+            LOGGER.warn(ReservationLogMessages.Processing.INVALID_IDENTIFIERS);
             return ReservationResult.failure(String.format(
                     Constants.INVALID_RESERVATION_IDS,
                     Constants.MAX_RESERVATION_ID_LENGTH));
@@ -58,7 +58,7 @@ public class WorkerReservationService
         if (key != null
                 && (key.isBlank() || key.length() > Constants.MAX_RESERVATION_KEY_LENGTH))
         {
-            LOGGER.warn(Constants.LOG_RESERVATION_INVALID_KEY,
+            LOGGER.warn(ReservationLogMessages.Processing.INVALID_KEY,
                     uploadId,
                     chunkId);
             return ReservationResult.failure(String.format(
@@ -72,12 +72,12 @@ public class WorkerReservationService
         {
             if (Objects.equals(existing.get().getReservationKey(), key))
             {
-                LOGGER.info(Constants.LOG_RESERVATION_ALREADY_EXISTS,
+                LOGGER.info(ReservationLogMessages.Processing.ALREADY_EXISTS,
                         uploadId,
                         chunkId);
                 return ReservationResult.success(Constants.RESERVATION_ALREADY_EXISTS);
             }
-            LOGGER.warn(Constants.LOG_RESERVATION_KEY_MISMATCH,
+            LOGGER.warn(ReservationLogMessages.Processing.KEY_MISMATCH,
                     uploadId,
                     chunkId);
             return ReservationResult.failure(Constants.RESERVATION_KEY_MISMATCH);
@@ -91,20 +91,20 @@ public class WorkerReservationService
         try
         {
             reservations.saveAndFlush(reservation);
-            LOGGER.info(Constants.LOG_RESERVATION_CREATED,
+            LOGGER.info(ReservationLogMessages.Processing.CREATED,
                     uploadId,
                     chunkId);
             return ReservationResult.success(Constants.RESERVATION_CREATED);
         } catch (DataIntegrityViolationException concurrentDuplicate)
         {
             // The database's composite primary key protects concurrent reservations.
-            LOGGER.warn(Constants.LOG_RESERVATION_CONCURRENT_CONFLICT,
+            LOGGER.warn(ReservationLogMessages.Processing.CONCURRENT_CONFLICT,
                     uploadId,
                     chunkId);
             Optional<ChunkReservation> winner = reservations.findById(id);
             if (winner.isPresent() && Objects.equals(winner.get().getReservationKey(), key))
             {
-                LOGGER.info(Constants.LOG_RESERVATION_CONCURRENT_RETRY,
+                LOGGER.info(ReservationLogMessages.Processing.CONCURRENT_RETRY,
                         uploadId,
                         chunkId);
                 return ReservationResult.success(Constants.RESERVATION_ALREADY_EXISTS);

@@ -77,7 +77,9 @@ class WorkerReservationServiceTest
         ReservationResult result = service.reserve(UPLOAD_ID, CHUNK_ID, "   ");
 
         assertThat(result.success()).isFalse();
-        assertThat(result.message()).contains("Reservation key");
+        assertThat(result.message()).isEqualTo(String.format(
+                Constants.INVALID_RESERVATION_KEY,
+                Constants.MAX_RESERVATION_KEY_LENGTH));
         verifyNoInteractions(reservations);
     }
 
