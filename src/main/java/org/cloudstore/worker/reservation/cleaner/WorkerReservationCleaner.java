@@ -1,7 +1,10 @@
-package org.cloudstore.worker.reservation;
+package org.cloudstore.worker.reservation.cleaner;
 
 import org.cloudstore.worker.ChunkState;
 import org.cloudstore.worker.Constants;
+import org.cloudstore.worker.reservation.ChunkReservation;
+import org.cloudstore.worker.reservation.ChunkReservationRepository;
+import org.cloudstore.worker.reservation.ReservationLogMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
