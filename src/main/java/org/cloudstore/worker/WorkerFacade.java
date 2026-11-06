@@ -1,5 +1,6 @@
 package org.cloudstore.worker;
 
+import org.cloudstore.worker.reservation.ReservationLogMessages;
 import org.cloudstore.worker.reservation.ReservationResult;
 import org.cloudstore.worker.reservation.WorkerReservationService;
 import org.slf4j.Logger;
@@ -36,9 +37,9 @@ public class WorkerFacade
      */
     public ReservationResult reserve(String chunkId, String uploadId, String key)
     {
-        LOGGER.info(Constants.LOG_RESERVATION_RECEIVED);
+        LOGGER.info(ReservationLogMessages.Facade.REQUEST_RECEIVED);
         ReservationResult result = reservationService.reserve(uploadId, chunkId, key);
-        LOGGER.info(Constants.LOG_RESERVATION_COMPLETED, result.success());
+        LOGGER.info(ReservationLogMessages.Facade.REQUEST_COMPLETED, result.success());
         return result;
     }
 }
