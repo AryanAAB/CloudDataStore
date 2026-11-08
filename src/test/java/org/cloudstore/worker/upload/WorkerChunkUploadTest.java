@@ -22,8 +22,7 @@ import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.HexFormat;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -87,7 +86,7 @@ class WorkerChunkUploadTest
     }
 
     @Test
-    void writesOnlyVerifiedContentAndRenewsLeaseAroundTheUpload() throws Exception
+    void writesOnlyVerifiedContentAndRenewsLeaseBeforeAndAfterTheUpload() throws Exception
     {
         long storedBytes = uploader.upload(
                 FILE_ID, CHUNK_ID, KEY, CONTENT.length, checksum(CONTENT),
@@ -100,7 +99,31 @@ class WorkerChunkUploadTest
                     .findFirst().orElseThrow();
             assertThat(Files.readAllBytes(storedChunk)).containsExactly(CONTENT);
         }
-        assertThat(leaseHeartbeat.renewalCount()).isGreaterThanOrEqualTo(3);
+        assertThat(leaseHeartbeat.renewalCount()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void renewsReservationWhileUploadStreamIsStillInProgress() throws Exception
+    {
+        leaseHeartbeat.setHeartbeatInterval(Duration.ofMillis(10L));
+        GatedInputStream content = new GatedInputStream(CONTENT);
+        ExecutorService uploadExecutor = Executors.newSingleThreadExecutor();
+        try
+        {
+            Future<Long> upload = uploadExecutor.submit(() -> uploader.upload(
+                    FILE_ID, CHUNK_ID, KEY, CONTENT.length, checksum(CONTENT), content));
+
+            assertThat(content.awaitFirstRead(1L, TimeUnit.SECONDS)).isTrue();
+            assertThat(leaseHeartbeat.awaitAdditionalRenewal(1L, TimeUnit.SECONDS)).isTrue();
+            assertThat(upload.isDone()).isFalse();
+
+            content.allowReadToContinue();
+            assertThat(upload.get(2L, TimeUnit.SECONDS)).isEqualTo(CONTENT.length);
+        } finally
+        {
+            content.allowReadToContinue();
+            uploadExecutor.shutdownNow();
+        }
     }
 
     @Test
@@ -171,19 +194,28 @@ class WorkerChunkUploadTest
     private static final class ControlledLeaseHeartbeat extends WorkerReservationLeaseHeartbeat
     {
         private final AtomicInteger renewalCount = new AtomicInteger();
+        private final CountDownLatch additionalRenewal = new CountDownLatch(1);
         private volatile int failedRenewalNumber = Integer.MAX_VALUE;
         private volatile Duration heartbeatInterval;
 
         private ControlledLeaseHeartbeat(Duration heartbeatInterval)
         {
-            super(null, null, null);
+            super(null, null, null, null);
             this.heartbeatInterval = heartbeatInterval;
         }
 
         @Override
-        public boolean renewIfActive(String fileId, String chunkId, String key)
+        public void renewOrThrowIfInactive(String fileId, String chunkId, String key)
         {
-            return renewalCount.incrementAndGet() != failedRenewalNumber;
+            int renewalNumber = renewalCount.incrementAndGet();
+            if (renewalNumber > 1)
+            {
+                additionalRenewal.countDown();
+            }
+            if (renewalNumber == failedRenewalNumber)
+            {
+                throw new ChunkUploadNotReservedException();
+            }
         }
 
         @Override
@@ -195,6 +227,11 @@ class WorkerChunkUploadTest
         private int renewalCount()
         {
             return renewalCount.get();
+        }
+
+        private boolean awaitAdditionalRenewal(long timeout, TimeUnit unit) throws InterruptedException
+        {
+            return additionalRenewal.await(timeout, unit);
         }
 
         private void failOnRenewal(int renewalNumber)
@@ -283,6 +320,57 @@ class WorkerChunkUploadTest
         private boolean wasClosed()
         {
             return closed.getCount() == 0L;
+        }
+    }
+
+    private static final class GatedInputStream extends InputStream
+    {
+        private final byte[] content;
+        private final CountDownLatch firstRead = new CountDownLatch(1);
+        private final CountDownLatch continueReading = new CountDownLatch(1);
+        private int currentIndex;
+        private boolean waitingForRelease = true;
+
+        private GatedInputStream(byte[] content)
+        {
+            this.content = content;
+        }
+
+        @Override
+        public int read() throws IOException
+        {
+            if (waitingForRelease)
+            {
+                waitingForRelease = false;
+                firstRead.countDown();
+                try
+                {
+                    if (!continueReading.await(2L, TimeUnit.SECONDS))
+                    {
+                        throw new IOException("Timed out waiting for the upload test to continue");
+                    }
+                } catch (InterruptedException interrupted)
+                {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(interrupted);
+                }
+            }
+
+            if (currentIndex >= content.length)
+            {
+                return -1;
+            }
+            return Byte.toUnsignedInt(content[currentIndex++]);
+        }
+
+        private boolean awaitFirstRead(long timeout, TimeUnit unit) throws InterruptedException
+        {
+            return firstRead.await(timeout, unit);
+        }
+
+        private void allowReadToContinue()
+        {
+            continueReading.countDown();
         }
     }
 }

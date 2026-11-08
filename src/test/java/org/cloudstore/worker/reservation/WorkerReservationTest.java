@@ -10,6 +10,7 @@ import org.cloudstore.worker.reservation.renewal.strategies.AlwaysAcceptKeyRenew
 import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.cloudstore.worker.validation.identifier.OpaqueStringIdentifierValidator;
 import org.cloudstore.worker.validation.key.RequiredReservationKeyValidator;
+import org.cloudstore.worker.validation.keycomparison.strategies.ExactReservationKeyComparisonStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,6 +56,7 @@ public class WorkerReservationTest
                 new OpaqueStringIdentifierValidator(validationProperties),
                 new RequiredReservationKeyValidator(validationProperties),
                 new AfterExpirationKeyRenewalStrategy(),
+                new ExactReservationKeyComparisonStrategy(),
                 reservationProperties,
                 validationProperties);
     }
@@ -142,6 +144,7 @@ public class WorkerReservationTest
                 new OpaqueStringIdentifierValidator(validationProperties),
                 new RequiredReservationKeyValidator(validationProperties),
                 new AlwaysAcceptKeyRenewalStrategy(),
+                new ExactReservationKeyComparisonStrategy(),
                 reservationProperties,
                 validationProperties);
 
@@ -153,6 +156,28 @@ public class WorkerReservationTest
         assertThat(result.success()).isTrue();
         assertThat(existing.getReservationKey()).isEqualTo("replacement-key");
         assertThat(existing.getExpiresAt()).isAfter(previousExpiry);
+    }
+
+    @Test
+    void rejectsDifferentKeyUsingTheConfiguredComparisonStrategy()
+    {
+        Instant previousExpiry = Instant.now().plusSeconds(reservationProperties.getTtlSeconds() - 1L);
+        ChunkRecord existing = reservation("CaseSensitiveKey", previousExpiry);
+        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
+                .thenReturn(Optional.of(existing));
+        WorkerReservation reservation = new WorkerReservation(
+                chunkRecords,
+                new OpaqueStringIdentifierValidator(validationProperties),
+                new RequiredReservationKeyValidator(validationProperties),
+                new AfterExpirationKeyRenewalStrategy(),
+                new ExactReservationKeyComparisonStrategy(),
+                reservationProperties,
+                validationProperties);
+
+        ReservationResult result = reservation.reserve(
+                CHUNK_ID, FILE_ID, "casesensitivekey");
+
+        assertThat(result.success()).isFalse();
     }
 
     @Test

@@ -45,4 +45,5 @@ public class WorkerReservationProperties
     {
         this.keyRenewalPolicy = keyRenewalPolicy;
     }
+
 }

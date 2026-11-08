@@ -51,7 +51,7 @@ class WorkerReservationControllerTest
 
     private static WorkerReservation fakeReservation(ReservationResult result)
     {
-        return new WorkerReservation(null, null, null, null, null, null)
+        return new WorkerReservation(null, null, null, null, null, null, null)
         {
             @Override
             public ReservationResult reserve(String chunkId, String fileId, String key)

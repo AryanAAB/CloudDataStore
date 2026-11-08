@@ -10,13 +10,13 @@ import org.cloudstore.worker.reservation.renewal.strategies.ReservationRenewalSt
 import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.cloudstore.worker.validation.identifier.IdentifierValidator;
 import org.cloudstore.worker.validation.key.ReservationKeyValidator;
+import org.cloudstore.worker.validation.keycomparison.strategies.ReservationKeyComparisonStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -31,6 +31,7 @@ public class WorkerReservation
     private final IdentifierValidator identifierValidator;
     private final ReservationKeyValidator keyValidator;
     private final ReservationRenewalStrategy renewalStrategy;
+    private final ReservationKeyComparisonStrategy keyComparisonStrategy;
     private final WorkerReservationProperties reservationProperties;
     private final WorkerValidationProperties validationProperties;
 
@@ -41,6 +42,7 @@ public class WorkerReservation
      * @param identifierValidator   validation policy for upload and chunk identifiers
      * @param keyValidator          validation policy for optional reservation keys
      * @param renewalStrategy       policy for accepting a different key on an existing reservation
+     * @param keyComparisonStrategy policy for deciding whether supplied and stored keys match
      * @param reservationProperties reservation lease settings
      * @param validationProperties  identifier and key length limits
      */
@@ -49,6 +51,7 @@ public class WorkerReservation
             IdentifierValidator identifierValidator,
             ReservationKeyValidator keyValidator,
             ReservationRenewalStrategy renewalStrategy,
+            ReservationKeyComparisonStrategy keyComparisonStrategy,
             WorkerReservationProperties reservationProperties,
             WorkerValidationProperties validationProperties)
     {
@@ -56,6 +59,7 @@ public class WorkerReservation
         this.identifierValidator = identifierValidator;
         this.keyValidator = keyValidator;
         this.renewalStrategy = renewalStrategy;
+        this.keyComparisonStrategy = keyComparisonStrategy;
         this.reservationProperties = reservationProperties;
         this.validationProperties = validationProperties;
     }
@@ -120,7 +124,7 @@ public class WorkerReservation
             Instant now,
             Instant expiresAt)
     {
-        boolean keyMatches = Objects.equals(existing.getReservationKey(), key);
+        boolean keyMatches = keyComparisonStrategy.matches(existing.getReservationKey(), key);
         if (!keyMatches && !renewalStrategy.canAcceptDifferentKey(existing, now))
         {
             LOGGER.warn(WorkerReservationLogMessages.KEY_CONFLICT,

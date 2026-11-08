@@ -88,10 +88,7 @@ public class WorkerChunkUpload
         byte[] expectedChecksumBytes =
                 contentVerifier.validateExpectedValues(expectedSize, expectedChecksum);
 
-        if (!leaseHeartbeat.renewIfActive(fileId, chunkId, key))
-        {
-            throw new ChunkUploadNotReservedException();
-        }
+        leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
 
         AtomicBoolean leaseLost = new AtomicBoolean(false);
         ScheduledFuture<?> heartbeatTask = heartbeatScheduler.scheduleAtFixedRate(
@@ -124,10 +121,7 @@ public class WorkerChunkUpload
                 throw new ChunkUploadNotReservedException();
             }
             heartbeatTask.cancel(false);
-            if (!leaseHeartbeat.renewIfActive(fileId, chunkId, key))
-            {
-                throw new ChunkUploadNotReservedException();
-            }
+            leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
             String verifiedChecksum = HexFormat.of().formatHex(expectedChecksumBytes);
             chunkFileStorage.store(
                     temporaryFile,
@@ -163,13 +157,8 @@ public class WorkerChunkUpload
         }
         try
         {
-            if (!leaseHeartbeat.renewIfActive(fileId, chunkId, key))
-            {
-                leaseLost.set(true);
-                content.close();
-                LOGGER.warn(WorkerChunkUploadLogMessages.HEARTBEAT_FAILED, fileId, chunkId);
-            }
-        } catch (RuntimeException | IOException heartbeatFailure)
+            leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
+        } catch (RuntimeException heartbeatFailure)
         {
             leaseLost.set(true);
             try
