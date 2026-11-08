@@ -2,18 +2,20 @@ package org.cloudstore;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.scheduling.annotation.EnableScheduling;
 
-/** Boots the CloudDataStore worker application. */
+/**
+ * Starts the CloudDataStore worker application.
+ */
 @SpringBootApplication
-@EnableScheduling
-public class CloudDataStoreApplication {
+public class CloudDataStoreApplication
+{
     /**
-     * Starts Spring and keeps the worker process running.
+     * Starts the Spring application.
      *
-     * @param args command-line arguments passed to the application
+     * @param args application command-line arguments
      */
-    public static void main(String[] args) {
+    public static void main(String[] args)
+    {
         SpringApplication.run(CloudDataStoreApplication.class, args);
     }
 }

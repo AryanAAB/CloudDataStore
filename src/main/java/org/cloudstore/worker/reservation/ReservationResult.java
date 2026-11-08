@@ -1,18 +1,15 @@
 package org.cloudstore.worker.reservation;
 
 /**
- * Outcome returned by a worker reservation operation.
- *
- * @param success whether the reservation request succeeded
- * @param message human-readable result details
+ * Outcome of a worker reservation request.
  */
 public record ReservationResult(boolean success, String message)
 {
     /**
-     * Creates a successful result with the supplied message.
+     * Creates a successful reservation result.
      *
-     * @param message human-readable success details
-     * @return a successful result
+     * @param message result message
+     * @return successful result
      */
     public static ReservationResult success(String message)
     {
@@ -20,9 +17,10 @@ public record ReservationResult(boolean success, String message)
     }
 
     /**
-     * Creates a failed result with the supplied message.
+     * Creates a failed reservation result.
      *
-     * @param message human-readable failure details
+     * @param message result message
+     * @return failed result
      */
     public static ReservationResult failure(String message)
     {
