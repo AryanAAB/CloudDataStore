@@ -1,6 +1,6 @@
 package org.cloudstore.worker.validation.key;
 
-import org.cloudstore.worker.validation.constants.ValidationConstants;
+import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,6 +9,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class OptionalReservationKeyValidator implements ReservationKeyValidator
 {
+    private final WorkerValidationProperties validationProperties;
+
+    /**
+     * Creates the validator with configured reservation key limits.
+     *
+     * @param validationProperties worker validation settings
+     */
+    public OptionalReservationKeyValidator(WorkerValidationProperties validationProperties)
+    {
+        this.validationProperties = validationProperties;
+    }
+
     /**
      * Checks whether a non-null key is blank or too long.
      *
@@ -20,6 +32,6 @@ public class OptionalReservationKeyValidator implements ReservationKeyValidator
     {
         return key != null
                 && (key.isBlank()
-                || key.length() > ValidationConstants.MAX_RESERVATION_KEY_LENGTH);
+                || key.length() > validationProperties.getMaxReservationKeyLength());
     }
 }

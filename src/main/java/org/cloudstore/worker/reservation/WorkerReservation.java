@@ -3,11 +3,11 @@ package org.cloudstore.worker.reservation;
 import org.cloudstore.worker.data.ChunkRecord;
 import org.cloudstore.worker.data.ChunkRecordId;
 import org.cloudstore.worker.data.ChunkRecordRepository;
-import org.cloudstore.worker.reservation.constants.WorkerReservationConstants;
 import org.cloudstore.worker.reservation.constants.WorkerReservationLogMessages;
 import org.cloudstore.worker.reservation.constants.WorkerReservationMessages;
-import org.cloudstore.worker.reservation.renewal.ReservationRenewalStrategy;
-import org.cloudstore.worker.validation.constants.ValidationConstants;
+import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
+import org.cloudstore.worker.reservation.renewal.strategies.ReservationRenewalStrategy;
+import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.cloudstore.worker.validation.identifier.IdentifierValidator;
 import org.cloudstore.worker.validation.key.ReservationKeyValidator;
 import org.slf4j.Logger;
@@ -31,25 +31,33 @@ public class WorkerReservation
     private final IdentifierValidator identifierValidator;
     private final ReservationKeyValidator keyValidator;
     private final ReservationRenewalStrategy renewalStrategy;
+    private final WorkerReservationProperties reservationProperties;
+    private final WorkerValidationProperties validationProperties;
 
     /**
      * Creates the reservation operation with its persistence and identifier policy.
      *
-     * @param chunkRecords        repository for worker chunk records
-     * @param identifierValidator validation policy for upload and chunk identifiers
-     * @param keyValidator        validation policy for optional reservation keys
-     * @param renewalStrategy     policy for accepting a different key on an existing reservation
+     * @param chunkRecords          repository for worker chunk records
+     * @param identifierValidator   validation policy for upload and chunk identifiers
+     * @param keyValidator          validation policy for optional reservation keys
+     * @param renewalStrategy       policy for accepting a different key on an existing reservation
+     * @param reservationProperties reservation lease settings
+     * @param validationProperties  identifier and key length limits
      */
     public WorkerReservation(
             ChunkRecordRepository chunkRecords,
             IdentifierValidator identifierValidator,
             ReservationKeyValidator keyValidator,
-            ReservationRenewalStrategy renewalStrategy)
+            ReservationRenewalStrategy renewalStrategy,
+            WorkerReservationProperties reservationProperties,
+            WorkerValidationProperties validationProperties)
     {
         this.chunkRecords = chunkRecords;
         this.identifierValidator = identifierValidator;
         this.keyValidator = keyValidator;
         this.renewalStrategy = renewalStrategy;
+        this.reservationProperties = reservationProperties;
+        this.validationProperties = validationProperties;
     }
 
     /**
@@ -70,18 +78,18 @@ public class WorkerReservation
             LOGGER.warn(WorkerReservationLogMessages.INVALID_IDENTIFIERS);
             return ReservationResult.failure(String.format(
                     WorkerReservationMessages.INVALID_IDENTIFIERS,
-                    ValidationConstants.MAX_IDENTIFIER_LENGTH));
+                    validationProperties.getMaxIdentifierLength()));
         }
         if (keyValidator.isInvalid(key))
         {
             LOGGER.warn(WorkerReservationLogMessages.INVALID_KEY, fileId, chunkId);
             return ReservationResult.failure(String.format(
                     WorkerReservationMessages.INVALID_KEY,
-                    ValidationConstants.MAX_RESERVATION_KEY_LENGTH));
+                    validationProperties.getMaxReservationKeyLength()));
         }
 
         Instant now = Instant.now();
-        Instant expiresAt = now.plusMillis(WorkerReservationConstants.RESERVATION_TTL_MILLIS);
+        Instant expiresAt = now.plusSeconds(reservationProperties.getTtlSeconds());
         ChunkRecordId id = new ChunkRecordId(fileId, chunkId);
         Optional<ChunkRecord> existing = chunkRecords.findById(id);
         if (existing.isPresent())

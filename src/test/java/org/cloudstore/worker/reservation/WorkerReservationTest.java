@@ -3,11 +3,11 @@ package org.cloudstore.worker.reservation;
 import org.cloudstore.worker.data.ChunkRecord;
 import org.cloudstore.worker.data.ChunkRecordId;
 import org.cloudstore.worker.data.ChunkRecordRepository;
-import org.cloudstore.worker.reservation.constants.WorkerReservationConstants;
 import org.cloudstore.worker.reservation.constants.WorkerReservationMessages;
-import org.cloudstore.worker.reservation.renewal.AfterExpirationKeyRenewalStrategy;
-import org.cloudstore.worker.reservation.renewal.AlwaysAcceptKeyRenewalStrategy;
-import org.cloudstore.worker.validation.constants.ValidationConstants;
+import org.cloudstore.worker.reservation.renewal.strategies.AfterExpirationKeyRenewalStrategy;
+import org.cloudstore.worker.reservation.renewal.strategies.AlwaysAcceptKeyRenewalStrategy;
+import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
+import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.cloudstore.worker.validation.identifier.OpaqueStringIdentifierValidator;
 import org.cloudstore.worker.validation.key.OptionalReservationKeyValidator;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,15 +38,24 @@ public class WorkerReservationTest
     private ChunkRecordRepository chunkRecords;
 
     private WorkerReservation reservationThread;
+    private WorkerReservationProperties reservationProperties;
+    private WorkerValidationProperties validationProperties;
 
     @BeforeEach
     void setUp()
     {
+        reservationProperties = new WorkerReservationProperties();
+        reservationProperties.setTtlSeconds(60L);
+        validationProperties = new WorkerValidationProperties();
+        validationProperties.setMaxIdentifierLength(255);
+        validationProperties.setMaxReservationKeyLength(128);
         reservationThread = new WorkerReservation(
                 chunkRecords,
-                new OpaqueStringIdentifierValidator(),
-                new OptionalReservationKeyValidator(),
-                new AfterExpirationKeyRenewalStrategy());
+                new OpaqueStringIdentifierValidator(validationProperties),
+                new OptionalReservationKeyValidator(validationProperties),
+                new AfterExpirationKeyRenewalStrategy(),
+                reservationProperties,
+                validationProperties);
     }
 
     @Test
@@ -69,8 +78,7 @@ public class WorkerReservationTest
         assertThat(savedReservation.getValue().getFileId()).isEqualTo(FILE_ID);
         assertThat(savedReservation.getValue().getReservationKey()).isEqualTo(RESERVATION_KEY);
         assertThat(savedReservation.getValue().getExpiresAt())
-                .isAfter(beforeRequest.plusMillis(
-                        WorkerReservationConstants.RESERVATION_TTL_MILLIS - 1_000L));
+                .isAfter(beforeRequest.plusSeconds(reservationProperties.getTtlSeconds() - 1L));
     }
 
     @Test
@@ -91,7 +99,7 @@ public class WorkerReservationTest
     {
         ChunkRecord existing = reservation(
                 RESERVATION_KEY,
-                Instant.now().plusMillis(WorkerReservationConstants.RESERVATION_TTL_MILLIS));
+                Instant.now().plusSeconds(reservationProperties.getTtlSeconds()));
         Instant previousExpiry = existing.getExpiresAt();
         when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
@@ -108,8 +116,7 @@ public class WorkerReservationTest
     @Test
     void rejectsDifferentKeyWhileReservationIsActive()
     {
-        Instant previousExpiry = Instant.now().plusMillis(
-                WorkerReservationConstants.RESERVATION_TTL_MILLIS);
+        Instant previousExpiry = Instant.now().plusSeconds(reservationProperties.getTtlSeconds());
         ChunkRecord existing = reservation(RESERVATION_KEY, previousExpiry);
         when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
@@ -125,17 +132,18 @@ public class WorkerReservationTest
     @Test
     void alwaysAcceptStrategyReplacesKeyOnAnActiveReservation()
     {
-        Instant previousExpiry = Instant.now().plusMillis(
-                WorkerReservationConstants.RESERVATION_TTL_MILLIS);
+        Instant previousExpiry = Instant.now().plusSeconds(reservationProperties.getTtlSeconds());
         ChunkRecord existing = reservation(RESERVATION_KEY, previousExpiry);
         when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
         when(chunkRecords.saveAndFlush(existing)).thenReturn(existing);
         WorkerReservation alwaysAcceptWorkerReservation = new WorkerReservation(
                 chunkRecords,
-                new OpaqueStringIdentifierValidator(),
-                new OptionalReservationKeyValidator(),
-                new AlwaysAcceptKeyRenewalStrategy());
+                new OpaqueStringIdentifierValidator(validationProperties),
+                new OptionalReservationKeyValidator(validationProperties),
+                new AlwaysAcceptKeyRenewalStrategy(),
+                reservationProperties,
+                validationProperties);
 
         ReservationResult result = alwaysAcceptWorkerReservation.reserve(
                 CHUNK_ID,
@@ -170,7 +178,7 @@ public class WorkerReservationTest
         assertThat(result.success()).isFalse();
         assertThat(result.message()).isEqualTo(String.format(
                 WorkerReservationMessages.INVALID_IDENTIFIERS,
-                ValidationConstants.MAX_IDENTIFIER_LENGTH));
+                validationProperties.getMaxIdentifierLength()));
         verifyNoInteractions(chunkRecords);
     }
 

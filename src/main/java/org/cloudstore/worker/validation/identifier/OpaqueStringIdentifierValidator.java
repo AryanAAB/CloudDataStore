@@ -1,6 +1,6 @@
 package org.cloudstore.worker.validation.identifier;
 
-import org.cloudstore.worker.validation.constants.ValidationConstants;
+import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,6 +9,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class OpaqueStringIdentifierValidator implements IdentifierValidator
 {
+    private final WorkerValidationProperties validationProperties;
+
+    /**
+     * Creates the validator with configured identifier limits.
+     *
+     * @param validationProperties worker validation settings
+     */
+    public OpaqueStringIdentifierValidator(WorkerValidationProperties validationProperties)
+    {
+        this.validationProperties = validationProperties;
+    }
+
     /**
      * Checks whether an identifier is blank or exceeds the configured length limit.
      *
@@ -20,6 +32,6 @@ public class OpaqueStringIdentifierValidator implements IdentifierValidator
     {
         return identifier == null
                 || identifier.isBlank()
-                || identifier.length() > ValidationConstants.MAX_IDENTIFIER_LENGTH;
+                || identifier.length() > validationProperties.getMaxIdentifierLength();
     }
 }

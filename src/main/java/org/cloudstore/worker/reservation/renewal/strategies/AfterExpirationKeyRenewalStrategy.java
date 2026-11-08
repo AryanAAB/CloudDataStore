@@ -1,20 +1,12 @@
-package org.cloudstore.worker.reservation.renewal;
+package org.cloudstore.worker.reservation.renewal.strategies;
 
 import org.cloudstore.worker.data.ChunkRecord;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
 /**
  * Allows a different key to replace an existing key only after its reservation expires.
  */
-@Component
-@ConditionalOnProperty(
-        prefix = "worker.reservation",
-        name = "key-renewal-policy",
-        havingValue = ReservationRenewalModes.AFTER_EXPIRATION,
-        matchIfMissing = true)
 public class AfterExpirationKeyRenewalStrategy implements ReservationRenewalStrategy
 {
     /**

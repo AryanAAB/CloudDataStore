@@ -1,4 +1,4 @@
-package org.cloudstore.worker.reservation.renewal;
+package org.cloudstore.worker.reservation.renewal.strategies;
 
 import org.cloudstore.worker.data.ChunkRecord;
 

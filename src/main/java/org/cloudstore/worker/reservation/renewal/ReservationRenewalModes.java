@@ -3,22 +3,15 @@ package org.cloudstore.worker.reservation.renewal;
 /**
  * Supported reservation key renewal policies.
  */
-public final class ReservationRenewalModes
+public enum ReservationRenewalModes
 {
     /**
      * Allows replacing an active reservation key.
      */
-    public static final String ALWAYS_ACCEPT = "always-accept";
+    ALWAYS_ACCEPT,
 
     /**
      * Allows replacing a reservation key only after the current reservation expires.
      */
-    public static final String AFTER_EXPIRATION = "after-expiration";
-
-    /**
-     * Prevents construction of this constants-only class.
-     */
-    private ReservationRenewalModes()
-    {
-    }
+    AFTER_EXPIRATION
 }
