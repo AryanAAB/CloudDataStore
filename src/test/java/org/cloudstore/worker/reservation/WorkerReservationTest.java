@@ -4,9 +4,9 @@ import org.cloudstore.worker.data.ChunkRecord;
 import org.cloudstore.worker.data.ChunkRecordId;
 import org.cloudstore.worker.data.ChunkRecordRepository;
 import org.cloudstore.worker.reservation.constants.WorkerReservationMessages;
+import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
 import org.cloudstore.worker.reservation.renewal.strategies.AfterExpirationKeyRenewalStrategy;
 import org.cloudstore.worker.reservation.renewal.strategies.AlwaysAcceptKeyRenewalStrategy;
-import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
 import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.cloudstore.worker.validation.identifier.OpaqueStringIdentifierValidator;
 import org.cloudstore.worker.validation.key.OptionalReservationKeyValidator;
@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -180,6 +181,43 @@ public class WorkerReservationTest
                 WorkerReservationMessages.INVALID_IDENTIFIERS,
                 validationProperties.getMaxIdentifierLength()));
         verifyNoInteractions(chunkRecords);
+    }
+
+    @Test
+    void resolvesConcurrentInsertWhenWinningReservationUsesTheSameKey()
+    {
+        ChunkRecordId id = new ChunkRecordId(FILE_ID, CHUNK_ID);
+        ChunkRecord winner = reservation(
+                RESERVATION_KEY,
+                Instant.now().plusSeconds(reservationProperties.getTtlSeconds()));
+        when(chunkRecords.findById(id)).thenReturn(Optional.empty(), Optional.of(winner));
+        doThrow(new DataIntegrityViolationException("duplicate reservation"))
+                .doAnswer(invocation -> invocation.getArgument(0))
+                .when(chunkRecords).saveAndFlush(any(ChunkRecord.class));
+
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, RESERVATION_KEY);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.message()).isEqualTo(WorkerReservationMessages.RENEWED);
+        verify(chunkRecords, times(2)).saveAndFlush(any(ChunkRecord.class));
+    }
+
+    @Test
+    void rejectsConcurrentInsertWhenWinningReservationHasAnotherActiveKey()
+    {
+        ChunkRecordId id = new ChunkRecordId(FILE_ID, CHUNK_ID);
+        ChunkRecord winner = reservation(
+                RESERVATION_KEY,
+                Instant.now().plusSeconds(reservationProperties.getTtlSeconds()));
+        when(chunkRecords.findById(id)).thenReturn(Optional.empty(), Optional.of(winner));
+        doThrow(new DataIntegrityViolationException("duplicate reservation"))
+                .when(chunkRecords).saveAndFlush(any(ChunkRecord.class));
+
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, "competing-key");
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.message()).isEqualTo(WorkerReservationMessages.KEY_CONFLICT);
+        verify(chunkRecords).saveAndFlush(any(ChunkRecord.class));
     }
 
     private static ChunkRecord reservation(String key, Instant expiresAt)

@@ -77,15 +77,17 @@ public class WorkerReservation
         {
             LOGGER.warn(WorkerReservationLogMessages.INVALID_IDENTIFIERS);
             return ReservationResult.failure(String.format(
-                    WorkerReservationMessages.INVALID_IDENTIFIERS,
-                    validationProperties.getMaxIdentifierLength()));
+                            WorkerReservationMessages.INVALID_IDENTIFIERS,
+                            validationProperties.getMaxIdentifierLength()),
+                    ReservationResult.FailureCategory.INVALID_REQUEST);
         }
         if (keyValidator.isInvalid(key))
         {
             LOGGER.warn(WorkerReservationLogMessages.INVALID_KEY, fileId, chunkId);
             return ReservationResult.failure(String.format(
-                    WorkerReservationMessages.INVALID_KEY,
-                    validationProperties.getMaxReservationKeyLength()));
+                            WorkerReservationMessages.INVALID_KEY,
+                            validationProperties.getMaxReservationKeyLength()),
+                    ReservationResult.FailureCategory.INVALID_REQUEST);
         }
 
         Instant now = Instant.now();
@@ -124,7 +126,9 @@ public class WorkerReservation
             LOGGER.warn(WorkerReservationLogMessages.KEY_CONFLICT,
                     existing.getFileId(),
                     existing.getChunkId());
-            return ReservationResult.failure(WorkerReservationMessages.KEY_CONFLICT);
+            return ReservationResult.failure(
+                    WorkerReservationMessages.KEY_CONFLICT,
+                    ReservationResult.FailureCategory.CONFLICT);
         }
 
         existing.renew(key, expiresAt);
@@ -153,6 +157,8 @@ public class WorkerReservation
         LOGGER.warn(WorkerReservationLogMessages.CONCURRENT_CONFLICT,
                 id.getFileId(),
                 id.getChunkId());
-        return ReservationResult.failure(WorkerReservationMessages.CONCURRENT_CONFLICT);
+        return ReservationResult.failure(
+                WorkerReservationMessages.CONCURRENT_CONFLICT,
+                ReservationResult.FailureCategory.CONFLICT);
     }
 }
