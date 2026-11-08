@@ -31,7 +31,7 @@ import static org.mockito.Mockito.*;
 public class WorkerReservationTest
 {
     private static final String CHUNK_ID = "chunk-reservation-test";
-    private static final String UPLOAD_ID = "upload-reservation-test";
+    private static final String FILE_ID = "file-reservation-test";
     private static final String RESERVATION_KEY = "reservation-key-test";
 
     @Mock
@@ -52,13 +52,13 @@ public class WorkerReservationTest
     @Test
     void createsReservationWithCompositeIdKeyAndExpiration()
     {
-        ChunkRecordId id = new ChunkRecordId(UPLOAD_ID, CHUNK_ID);
+        ChunkRecordId id = new ChunkRecordId(FILE_ID, CHUNK_ID);
         when(chunkRecords.findById(id)).thenReturn(Optional.empty());
         when(chunkRecords.saveAndFlush(any(ChunkRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         Instant beforeRequest = Instant.now();
 
-        ReservationResult result = reservationThread.reserve(CHUNK_ID, UPLOAD_ID, RESERVATION_KEY);
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, RESERVATION_KEY);
 
         ArgumentCaptor<ChunkRecord> savedReservation =
                 ArgumentCaptor.forClass(ChunkRecord.class);
@@ -66,7 +66,7 @@ public class WorkerReservationTest
         assertThat(result.success()).isTrue();
         assertThat(result.message()).isEqualTo(WorkerReservationMessages.CREATED);
         assertThat(savedReservation.getValue().getChunkId()).isEqualTo(CHUNK_ID);
-        assertThat(savedReservation.getValue().getUploadId()).isEqualTo(UPLOAD_ID);
+        assertThat(savedReservation.getValue().getFileId()).isEqualTo(FILE_ID);
         assertThat(savedReservation.getValue().getReservationKey()).isEqualTo(RESERVATION_KEY);
         assertThat(savedReservation.getValue().getExpiresAt())
                 .isAfter(beforeRequest.plusMillis(
@@ -76,12 +76,12 @@ public class WorkerReservationTest
     @Test
     void permitsNullReservationKey()
     {
-        when(chunkRecords.findById(new ChunkRecordId(UPLOAD_ID, CHUNK_ID)))
+        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.empty());
         when(chunkRecords.saveAndFlush(any(ChunkRecord.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ReservationResult result = reservationThread.reserve(CHUNK_ID, UPLOAD_ID, null);
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, null);
 
         assertThat(result.success()).isTrue();
     }
@@ -93,11 +93,11 @@ public class WorkerReservationTest
                 RESERVATION_KEY,
                 Instant.now().plusMillis(WorkerReservationConstants.RESERVATION_TTL_MILLIS));
         Instant previousExpiry = existing.getExpiresAt();
-        when(chunkRecords.findById(new ChunkRecordId(UPLOAD_ID, CHUNK_ID)))
+        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
         when(chunkRecords.saveAndFlush(existing)).thenReturn(existing);
 
-        ReservationResult result = reservationThread.reserve(CHUNK_ID, UPLOAD_ID, RESERVATION_KEY);
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, RESERVATION_KEY);
 
         assertThat(result.success()).isTrue();
         assertThat(result.message()).isEqualTo(WorkerReservationMessages.RENEWED);
@@ -111,10 +111,10 @@ public class WorkerReservationTest
         Instant previousExpiry = Instant.now().plusMillis(
                 WorkerReservationConstants.RESERVATION_TTL_MILLIS);
         ChunkRecord existing = reservation(RESERVATION_KEY, previousExpiry);
-        when(chunkRecords.findById(new ChunkRecordId(UPLOAD_ID, CHUNK_ID)))
+        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
 
-        ReservationResult result = reservationThread.reserve(CHUNK_ID, UPLOAD_ID, "other-key");
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, "other-key");
 
         assertThat(result.success()).isFalse();
         assertThat(result.message()).isEqualTo(WorkerReservationMessages.KEY_CONFLICT);
@@ -128,7 +128,7 @@ public class WorkerReservationTest
         Instant previousExpiry = Instant.now().plusMillis(
                 WorkerReservationConstants.RESERVATION_TTL_MILLIS);
         ChunkRecord existing = reservation(RESERVATION_KEY, previousExpiry);
-        when(chunkRecords.findById(new ChunkRecordId(UPLOAD_ID, CHUNK_ID)))
+        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
         when(chunkRecords.saveAndFlush(existing)).thenReturn(existing);
         WorkerReservation alwaysAcceptWorkerReservation = new WorkerReservation(
@@ -139,7 +139,7 @@ public class WorkerReservationTest
 
         ReservationResult result = alwaysAcceptWorkerReservation.reserve(
                 CHUNK_ID,
-                UPLOAD_ID,
+                FILE_ID,
                 "replacement-key");
 
         assertThat(result.success()).isTrue();
@@ -151,11 +151,11 @@ public class WorkerReservationTest
     void reusesExpiredReservationWithANewKey()
     {
         ChunkRecord expired = reservation(RESERVATION_KEY, Instant.now().minusSeconds(1));
-        when(chunkRecords.findById(new ChunkRecordId(UPLOAD_ID, CHUNK_ID)))
+        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(expired));
         when(chunkRecords.saveAndFlush(expired)).thenReturn(expired);
 
-        ReservationResult result = reservationThread.reserve(CHUNK_ID, UPLOAD_ID, "new-key");
+        ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, "new-key");
 
         assertThat(result.success()).isTrue();
         assertThat(expired.getReservationKey()).isEqualTo("new-key");
@@ -165,7 +165,7 @@ public class WorkerReservationTest
     @Test
     void rejectsInvalidIdentifiersWithoutUsingRepository()
     {
-        ReservationResult result = reservationThread.reserve(" ", UPLOAD_ID, RESERVATION_KEY);
+        ReservationResult result = reservationThread.reserve(" ", FILE_ID, RESERVATION_KEY);
 
         assertThat(result.success()).isFalse();
         assertThat(result.message()).isEqualTo(String.format(
@@ -176,6 +176,6 @@ public class WorkerReservationTest
 
     private static ChunkRecord reservation(String key, Instant expiresAt)
     {
-        return new ChunkRecord(UPLOAD_ID, CHUNK_ID, key, expiresAt);
+        return new ChunkRecord(FILE_ID, CHUNK_ID, key, expiresAt);
     }
 }

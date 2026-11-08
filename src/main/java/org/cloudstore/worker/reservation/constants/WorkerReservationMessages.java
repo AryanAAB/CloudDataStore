@@ -6,10 +6,10 @@ package org.cloudstore.worker.reservation.constants;
 public final class WorkerReservationMessages
 {
     /**
-     * Format for invalid upload or chunk identifiers.
+     * Format for invalid file or chunk identifiers.
      */
     public static final String INVALID_IDENTIFIERS =
-            "Upload ID and chunk ID must be non-empty and no longer than %d characters";
+            "File ID and chunk ID must be non-empty and no longer than %d characters";
 
     /**
      * Format for an invalid non-null reservation key.

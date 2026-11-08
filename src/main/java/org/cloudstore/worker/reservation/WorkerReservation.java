@@ -57,15 +57,15 @@ public class WorkerReservation
      * A matching retry extends the lease. A different key conflicts while the
      * existing lease is active; an expired record can be reused.
      *
-     * @param chunkId  chunk identifier
-     * @param uploadId upload identifier
-     * @param key      optional reservation key; may be {@code null}
+     * @param chunkId chunk identifier
+     * @param fileId  file identifier
+     * @param key     optional reservation key; may be {@code null}
      * @return success or failure details
      */
-    public ReservationResult reserve(String chunkId, String uploadId, String key)
+    public ReservationResult reserve(String chunkId, String fileId, String key)
     {
         LOGGER.info(WorkerReservationLogMessages.REQUEST_RECEIVED);
-        if (identifierValidator.isInvalid(uploadId) || identifierValidator.isInvalid(chunkId))
+        if (identifierValidator.isInvalid(fileId) || identifierValidator.isInvalid(chunkId))
         {
             LOGGER.warn(WorkerReservationLogMessages.INVALID_IDENTIFIERS);
             return ReservationResult.failure(String.format(
@@ -74,7 +74,7 @@ public class WorkerReservation
         }
         if (keyValidator.isInvalid(key))
         {
-            LOGGER.warn(WorkerReservationLogMessages.INVALID_KEY, uploadId, chunkId);
+            LOGGER.warn(WorkerReservationLogMessages.INVALID_KEY, fileId, chunkId);
             return ReservationResult.failure(String.format(
                     WorkerReservationMessages.INVALID_KEY,
                     ValidationConstants.MAX_RESERVATION_KEY_LENGTH));
@@ -82,18 +82,18 @@ public class WorkerReservation
 
         Instant now = Instant.now();
         Instant expiresAt = now.plusMillis(WorkerReservationConstants.RESERVATION_TTL_MILLIS);
-        ChunkRecordId id = new ChunkRecordId(uploadId, chunkId);
+        ChunkRecordId id = new ChunkRecordId(fileId, chunkId);
         Optional<ChunkRecord> existing = chunkRecords.findById(id);
         if (existing.isPresent())
         {
             return renewExisting(existing.get(), key, now, expiresAt);
         }
 
-        ChunkRecord reservation = new ChunkRecord(uploadId, chunkId, key, expiresAt);
+        ChunkRecord reservation = new ChunkRecord(fileId, chunkId, key, expiresAt);
         try
         {
             chunkRecords.saveAndFlush(reservation);
-            LOGGER.info(WorkerReservationLogMessages.CREATED, uploadId, chunkId);
+            LOGGER.info(WorkerReservationLogMessages.CREATED, fileId, chunkId);
             return ReservationResult.success(WorkerReservationMessages.CREATED);
         } catch (DataIntegrityViolationException concurrentInsert)
         {
@@ -114,7 +114,7 @@ public class WorkerReservation
         if (!keyMatches && !renewalStrategy.canAcceptDifferentKey(existing, now))
         {
             LOGGER.warn(WorkerReservationLogMessages.KEY_CONFLICT,
-                    existing.getUploadId(),
+                    existing.getFileId(),
                     existing.getChunkId());
             return ReservationResult.failure(WorkerReservationMessages.KEY_CONFLICT);
         }
@@ -122,7 +122,7 @@ public class WorkerReservation
         existing.renew(key, expiresAt);
         chunkRecords.saveAndFlush(existing);
         LOGGER.info(WorkerReservationLogMessages.RENEWED,
-                existing.getUploadId(),
+                existing.getFileId(),
                 existing.getChunkId());
         return ReservationResult.success(WorkerReservationMessages.RENEWED);
     }
@@ -143,7 +143,7 @@ public class WorkerReservation
         }
 
         LOGGER.warn(WorkerReservationLogMessages.CONCURRENT_CONFLICT,
-                id.getUploadId(),
+                id.getFileId(),
                 id.getChunkId());
         return ReservationResult.failure(WorkerReservationMessages.CONCURRENT_CONFLICT);
     }
