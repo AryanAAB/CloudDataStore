@@ -1,4 +1,4 @@
-package org.cloudstore.worker.data;
+package org.cloudstore.worker.data.reservation;
 
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;

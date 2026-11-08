@@ -1,7 +1,7 @@
 package org.cloudstore.worker.upload;
 
-import org.cloudstore.worker.data.ChunkRecord;
-import org.cloudstore.worker.data.ChunkRecordRepository;
+import org.cloudstore.worker.data.reservation.ChunkRecord;
+import org.cloudstore.worker.data.reservation.ChunkRecordRepository;
 import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadHeartbeatProperties;
 import org.springframework.stereotype.Service;

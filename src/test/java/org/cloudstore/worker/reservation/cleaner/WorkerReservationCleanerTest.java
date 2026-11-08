@@ -1,6 +1,6 @@
 package org.cloudstore.worker.reservation.cleaner;
 
-import org.cloudstore.worker.data.ChunkRecordRepository;
+import org.cloudstore.worker.data.reservation.ChunkRecordRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

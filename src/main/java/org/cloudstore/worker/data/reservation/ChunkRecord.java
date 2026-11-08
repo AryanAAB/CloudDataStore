@@ -1,4 +1,4 @@
-package org.cloudstore.worker.data;
+package org.cloudstore.worker.data.reservation;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

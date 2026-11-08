@@ -1,6 +1,6 @@
 package org.cloudstore.worker.reservation.renewal.strategies;
 
-import org.cloudstore.worker.data.ChunkRecord;
+import org.cloudstore.worker.data.reservation.ChunkRecord;
 
 import java.time.Instant;
 

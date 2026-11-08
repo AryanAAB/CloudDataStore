@@ -1,4 +1,4 @@
-package org.cloudstore.worker.data;
+package org.cloudstore.worker.data.reservation;
 
 import java.io.Serializable;
 import java.util.Objects;

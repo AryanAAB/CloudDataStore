@@ -1,8 +1,8 @@
 package org.cloudstore.worker.reservation;
 
-import org.cloudstore.worker.data.ChunkRecord;
-import org.cloudstore.worker.data.ChunkRecordId;
-import org.cloudstore.worker.data.ChunkRecordRepository;
+import org.cloudstore.worker.data.reservation.ChunkRecord;
+import org.cloudstore.worker.data.reservation.ChunkRecordId;
+import org.cloudstore.worker.data.reservation.ChunkRecordRepository;
 import org.cloudstore.worker.reservation.constants.WorkerReservationMessages;
 import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
 import org.cloudstore.worker.reservation.renewal.strategies.AfterExpirationKeyRenewalStrategy;

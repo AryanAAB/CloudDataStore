@@ -1,6 +1,6 @@
 package org.cloudstore.worker.reservation.cleaner;
 
-import org.cloudstore.worker.data.ChunkRecordRepository;
+import org.cloudstore.worker.data.reservation.ChunkRecordRepository;
 import org.cloudstore.worker.reservation.cleaner.constants.WorkerReservationCleanerLogMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
