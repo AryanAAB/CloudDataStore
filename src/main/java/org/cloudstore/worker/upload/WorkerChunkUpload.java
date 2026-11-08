@@ -15,18 +15,14 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Validates a worker reservation and streams a chunk to durable local storage.
+ * Validates a worker reservation, verifies the chunk stream, and stores the file with metadata.
  */
 @Service
 public class WorkerChunkUpload
@@ -39,6 +35,7 @@ public class WorkerChunkUpload
     private final WorkerReservationLeaseHeartbeat leaseHeartbeat;
     private final TaskScheduler heartbeatScheduler;
     private final ChunkContentVerifier contentVerifier;
+    private final WorkerChunkFileStorage chunkFileStorage;
 
     /**
      * Creates the upload operation with reservation validation and storage dependencies.
@@ -49,7 +46,8 @@ public class WorkerChunkUpload
             WorkerChunkStorageProperties storageProperties,
             WorkerReservationLeaseHeartbeat leaseHeartbeat,
             @Qualifier("workerChunkUploadHeartbeatTaskScheduler") TaskScheduler heartbeatScheduler,
-            ChunkContentVerifier contentVerifier)
+            ChunkContentVerifier contentVerifier,
+            WorkerChunkFileStorage chunkFileStorage)
     {
         this.identifierValidator = identifierValidator;
         this.keyValidator = keyValidator;
@@ -57,10 +55,11 @@ public class WorkerChunkUpload
         this.leaseHeartbeat = leaseHeartbeat;
         this.heartbeatScheduler = heartbeatScheduler;
         this.contentVerifier = contentVerifier;
+        this.chunkFileStorage = chunkFileStorage;
     }
 
     /**
-     * Streams the request body into a temporary file and atomically installs the completed chunk.
+     * Streams and verifies the request body before installing the file and its metadata.
      *
      * @param fileId           file identifier from the master reservation
      * @param chunkId          chunk identifier from the master reservation
@@ -124,24 +123,18 @@ public class WorkerChunkUpload
             {
                 throw new ChunkUploadNotReservedException();
             }
-            Path targetFile = chunkDirectory.resolve(chunkFileName(fileId, chunkId));
             heartbeatTask.cancel(false);
             if (!leaseHeartbeat.renewIfActive(fileId, chunkId, key))
             {
                 throw new ChunkUploadNotReservedException();
             }
-            try
-            {
-                Files.move(temporaryFile, targetFile,
-                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException unsupportedAtomicMove)
-            {
-                Files.move(temporaryFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
-            }
-            if (!leaseHeartbeat.renewIfActive(fileId, chunkId, key))
-            {
-                throw new ChunkUploadNotReservedException();
-            }
+            String verifiedChecksum = HexFormat.of().formatHex(expectedChecksumBytes);
+            chunkFileStorage.store(
+                    temporaryFile,
+                    fileId,
+                    chunkId,
+                    size,
+                    verifiedChecksum);
             LOGGER.info(WorkerChunkUploadLogMessages.CHUNK_STORED, fileId, chunkId, size);
             return size;
         } finally
@@ -190,23 +183,4 @@ public class WorkerChunkUpload
         }
     }
 
-    /**
-     * Produces a safe, deterministic file name without using user identifiers as paths.
-     */
-    private String chunkFileName(String fileId, String chunkId)
-    {
-        try
-        {
-            MessageDigest digest = MessageDigest.getInstance(
-                    WorkerChunkUploadConstants.SHA_256_ALGORITHM);
-            digest.update(fileId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            digest.update(WorkerChunkUploadConstants.CHUNK_ID_SEPARATOR);
-            digest.update(chunkId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest.digest())
-                    + WorkerChunkUploadConstants.CHUNK_FILE_SUFFIX;
-        } catch (NoSuchAlgorithmException impossible)
-        {
-            throw new IllegalStateException(impossible);
-        }
-    }
 }

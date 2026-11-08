@@ -29,9 +29,7 @@ public class WorkerReservationController
     public ResponseEntity<ReservationResult> reserve(
             @PathVariable String fileId,
             @PathVariable String chunkId,
-            @RequestHeader(
-                    name = WorkerApiConstants.RESERVATION_KEY_HEADER,
-                    required = false) String key)
+            @RequestHeader(name = WorkerApiConstants.RESERVATION_KEY_HEADER, required = true) String key)
     {
         ReservationResult result = workerReservation.reserve(chunkId, fileId, key);
         if (result.success())

@@ -5,7 +5,7 @@ package org.cloudstore.worker.upload.constants;
  */
 public final class WorkerChunkUploadConstants
 {
-    public static final String CHUNK_PATH = "/{fileId}/chunks/{chunkId}";
+    public static final String CHUNK_UPLOAD_PATH = "/{fileId}/chunks/{chunkId}/upload";
     public static final String EXPECTED_CHUNK_SIZE_HEADER = "X-Chunk-Size";
     public static final String EXPECTED_CHUNK_SHA_256_HEADER = "X-Chunk-SHA256";
     public static final String SHA_256_ALGORITHM = "SHA-256";

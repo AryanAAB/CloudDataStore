@@ -1,5 +1,6 @@
 package org.cloudstore.worker.upload;
 
+import org.cloudstore.worker.data.metadata.ChunkFileMetadata;
 import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,10 +60,11 @@ class WorkerChunkUploadTest
         WorkerChunkUploadProperties uploadProperties = new WorkerChunkUploadProperties();
         uploadProperties.setBufferSizeBytes(8);
         ChunkContentVerifier verifier = new ChunkContentVerifier(uploadProperties);
+        WorkerChunkFileStorage fileStorage = new LocalTestChunkFileStorage(temporaryDirectory);
         IdentifierValidator identifiers = identifier -> identifier == null || identifier.isBlank();
         ReservationKeyValidator keys = key -> key != null && key.isBlank();
         uploader = new WorkerChunkUpload(
-                identifiers, keys, storageProperties, leaseHeartbeat, scheduler, verifier);
+                identifiers, keys, storageProperties, leaseHeartbeat, scheduler, verifier, fileStorage);
     }
 
     @AfterEach
@@ -202,6 +205,30 @@ class WorkerChunkUploadTest
         private void setHeartbeatInterval(Duration heartbeatInterval)
         {
             this.heartbeatInterval = heartbeatInterval;
+        }
+    }
+
+    private static final class LocalTestChunkFileStorage extends WorkerChunkFileStorage
+    {
+        private final Path rootDirectory;
+
+        private LocalTestChunkFileStorage(Path rootDirectory)
+        {
+            super(null, null, (PlatformTransactionManager) null);
+            this.rootDirectory = rootDirectory;
+        }
+
+        @Override
+        public ChunkFileMetadata store(
+                Path temporaryFile,
+                String fileId,
+                String chunkId,
+                long fileSize,
+                String checksum) throws IOException
+        {
+            Path destination = rootDirectory.resolve("verified.chunk");
+            Files.move(temporaryFile, destination);
+            return new ChunkFileMetadata(fileId, chunkId, destination.toString(), fileSize, checksum);
         }
     }
 

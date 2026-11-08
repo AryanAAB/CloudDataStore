@@ -30,12 +30,12 @@ public class WorkerChunkUploadController
      * Receives a raw chunk body and streams it to worker storage.
      */
     @PutMapping(
-            path = WorkerChunkUploadConstants.CHUNK_PATH,
+            path = WorkerChunkUploadConstants.CHUNK_UPLOAD_PATH,
             consumes = MediaType.APPLICATION_OCTET_STREAM_VALUE)
     public ResponseEntity<Long> upload(
             @PathVariable String fileId,
             @PathVariable String chunkId,
-            @RequestHeader(name = WorkerApiConstants.RESERVATION_KEY_HEADER, required = false) String key,
+            @RequestHeader(name = WorkerApiConstants.RESERVATION_KEY_HEADER, required = true) String key,
             @RequestHeader(name = WorkerChunkUploadConstants.EXPECTED_CHUNK_SIZE_HEADER) long expectedSize,
             @RequestHeader(name = WorkerChunkUploadConstants.EXPECTED_CHUNK_SHA_256_HEADER) String expectedChecksum,
             HttpServletRequest request) throws IOException

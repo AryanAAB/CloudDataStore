@@ -9,7 +9,7 @@ import org.cloudstore.worker.reservation.renewal.strategies.AfterExpirationKeyRe
 import org.cloudstore.worker.reservation.renewal.strategies.AlwaysAcceptKeyRenewalStrategy;
 import org.cloudstore.worker.validation.constants.WorkerValidationProperties;
 import org.cloudstore.worker.validation.identifier.OpaqueStringIdentifierValidator;
-import org.cloudstore.worker.validation.key.OptionalReservationKeyValidator;
+import org.cloudstore.worker.validation.key.RequiredReservationKeyValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +53,7 @@ public class WorkerReservationTest
         reservationThread = new WorkerReservation(
                 chunkRecords,
                 new OpaqueStringIdentifierValidator(validationProperties),
-                new OptionalReservationKeyValidator(validationProperties),
+                new RequiredReservationKeyValidator(validationProperties),
                 new AfterExpirationKeyRenewalStrategy(),
                 reservationProperties,
                 validationProperties);
@@ -83,16 +83,15 @@ public class WorkerReservationTest
     }
 
     @Test
-    void permitsNullReservationKey()
+    void rejectsMissingReservationKeyWithoutUsingRepository()
     {
-        when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
-                .thenReturn(Optional.empty());
-        when(chunkRecords.saveAndFlush(any(ChunkRecord.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
         ReservationResult result = reservationThread.reserve(CHUNK_ID, FILE_ID, null);
 
-        assertThat(result.success()).isTrue();
+        assertThat(result.success()).isFalse();
+        assertThat(result.message()).isEqualTo(String.format(
+                WorkerReservationMessages.INVALID_KEY,
+                validationProperties.getMaxReservationKeyLength()));
+        verifyNoInteractions(chunkRecords);
     }
 
     @Test
@@ -100,7 +99,7 @@ public class WorkerReservationTest
     {
         ChunkRecord existing = reservation(
                 RESERVATION_KEY,
-                Instant.now().plusSeconds(reservationProperties.getTtlSeconds()));
+                Instant.now().plusSeconds(reservationProperties.getTtlSeconds() - 1L));
         Instant previousExpiry = existing.getExpiresAt();
         when(chunkRecords.findById(new ChunkRecordId(FILE_ID, CHUNK_ID)))
                 .thenReturn(Optional.of(existing));
@@ -141,7 +140,7 @@ public class WorkerReservationTest
         WorkerReservation alwaysAcceptWorkerReservation = new WorkerReservation(
                 chunkRecords,
                 new OpaqueStringIdentifierValidator(validationProperties),
-                new OptionalReservationKeyValidator(validationProperties),
+                new RequiredReservationKeyValidator(validationProperties),
                 new AlwaysAcceptKeyRenewalStrategy(),
                 reservationProperties,
                 validationProperties);
