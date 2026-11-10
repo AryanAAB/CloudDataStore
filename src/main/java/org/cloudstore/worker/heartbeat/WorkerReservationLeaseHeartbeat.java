@@ -1,9 +1,9 @@
-package org.cloudstore.worker.upload;
+package org.cloudstore.worker.heartbeat;
 
 import org.cloudstore.worker.data.reservation.ChunkRecord;
 import org.cloudstore.worker.data.reservation.ChunkRecordRepository;
+import org.cloudstore.worker.heartbeat.constants.WorkerReservationLeaseHeartbeatProperties;
 import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
-import org.cloudstore.worker.upload.constants.WorkerChunkUploadHeartbeatProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkUploadNotReservedException;
 import org.cloudstore.worker.validation.keycomparison.strategies.ReservationKeyComparisonStrategy;
 import org.springframework.stereotype.Service;
@@ -22,7 +22,7 @@ public class WorkerReservationLeaseHeartbeat
 {
     private final ChunkRecordRepository chunkRecords;
     private final WorkerReservationProperties reservationProperties;
-    private final WorkerChunkUploadHeartbeatProperties heartbeatProperties;
+    private final WorkerReservationLeaseHeartbeatProperties heartbeatProperties;
     private final ReservationKeyComparisonStrategy keyComparisonStrategy;
 
     /**
@@ -31,7 +31,7 @@ public class WorkerReservationLeaseHeartbeat
     public WorkerReservationLeaseHeartbeat(
             ChunkRecordRepository chunkRecords,
             WorkerReservationProperties reservationProperties,
-            WorkerChunkUploadHeartbeatProperties heartbeatProperties,
+            WorkerReservationLeaseHeartbeatProperties heartbeatProperties,
             ReservationKeyComparisonStrategy keyComparisonStrategy)
     {
         this.chunkRecords = chunkRecords;

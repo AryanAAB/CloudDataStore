@@ -1,6 +1,8 @@
 package org.cloudstore.worker.upload;
 
 import org.cloudstore.worker.data.metadata.ChunkFileMetadata;
+import org.cloudstore.worker.heartbeat.HeartbeatService;
+import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
 import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
@@ -63,7 +65,13 @@ class WorkerChunkUploadTest
         IdentifierValidator identifiers = identifier -> identifier == null || identifier.isBlank();
         ReservationKeyValidator keys = key -> key != null && key.isBlank();
         uploader = new WorkerChunkUpload(
-                identifiers, keys, storageProperties, leaseHeartbeat, scheduler, verifier, fileStorage);
+                identifiers,
+                keys,
+                storageProperties,
+                leaseHeartbeat,
+                new HeartbeatService(scheduler),
+                verifier,
+                fileStorage);
     }
 
     @AfterEach

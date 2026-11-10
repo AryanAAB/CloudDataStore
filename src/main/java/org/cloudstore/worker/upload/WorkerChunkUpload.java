@@ -1,5 +1,7 @@
 package org.cloudstore.worker.upload;
 
+import org.cloudstore.worker.heartbeat.HeartbeatService;
+import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
 import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadConstants;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadLogMessages;
@@ -9,8 +11,6 @@ import org.cloudstore.worker.validation.identifier.IdentifierValidator;
 import org.cloudstore.worker.validation.key.ReservationKeyValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -18,7 +18,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HexFormat;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -33,7 +32,7 @@ public class WorkerChunkUpload
     private final ReservationKeyValidator keyValidator;
     private final WorkerChunkStorageProperties storageProperties;
     private final WorkerReservationLeaseHeartbeat leaseHeartbeat;
-    private final TaskScheduler heartbeatScheduler;
+    private final HeartbeatService heartbeatService;
     private final ChunkContentVerifier contentVerifier;
     private final WorkerChunkFileStorage chunkFileStorage;
 
@@ -45,7 +44,7 @@ public class WorkerChunkUpload
             ReservationKeyValidator keyValidator,
             WorkerChunkStorageProperties storageProperties,
             WorkerReservationLeaseHeartbeat leaseHeartbeat,
-            @Qualifier("workerChunkUploadHeartbeatTaskScheduler") TaskScheduler heartbeatScheduler,
+            HeartbeatService heartbeatService,
             ChunkContentVerifier contentVerifier,
             WorkerChunkFileStorage chunkFileStorage)
     {
@@ -53,7 +52,7 @@ public class WorkerChunkUpload
         this.keyValidator = keyValidator;
         this.storageProperties = storageProperties;
         this.leaseHeartbeat = leaseHeartbeat;
-        this.heartbeatScheduler = heartbeatScheduler;
+        this.heartbeatService = heartbeatService;
         this.contentVerifier = contentVerifier;
         this.chunkFileStorage = chunkFileStorage;
     }
@@ -91,7 +90,7 @@ public class WorkerChunkUpload
         leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
 
         AtomicBoolean leaseLost = new AtomicBoolean(false);
-        ScheduledFuture<?> heartbeatTask = heartbeatScheduler.scheduleAtFixedRate(
+        HeartbeatService.HeartbeatHandle heartbeatTask = heartbeatService.start(
                 () -> renewDuringUpload(fileId, chunkId, key, content, leaseLost),
                 leaseHeartbeat.getHeartbeatInterval());
         Path chunkDirectory = storageProperties.getRootDirectory();
@@ -120,7 +119,7 @@ public class WorkerChunkUpload
             {
                 throw new ChunkUploadNotReservedException();
             }
-            heartbeatTask.cancel(false);
+            heartbeatTask.close();
             leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
             String verifiedChecksum = HexFormat.of().formatHex(expectedChecksumBytes);
             chunkFileStorage.store(
@@ -133,7 +132,7 @@ public class WorkerChunkUpload
             return size;
         } finally
         {
-            heartbeatTask.cancel(false);
+            heartbeatTask.close();
             if (temporaryFile != null)
             {
                 Files.deleteIfExists(temporaryFile);
