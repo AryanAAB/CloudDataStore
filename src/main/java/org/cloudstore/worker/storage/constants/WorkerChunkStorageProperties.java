@@ -1,4 +1,4 @@
-package org.cloudstore.worker.upload.constants;
+package org.cloudstore.worker.storage.constants;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -30,3 +30,4 @@ public class WorkerChunkStorageProperties
         this.rootDirectory = rootDirectory;
     }
 }
+

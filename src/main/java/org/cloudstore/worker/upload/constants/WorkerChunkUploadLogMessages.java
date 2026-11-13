@@ -14,6 +14,10 @@ public final class WorkerChunkUploadLogMessages
             "Could not commit file metadata for file {} and chunk {}";
     public static final String NEW_CHUNK_FILE_CLEANUP_FAILED =
             "Could not remove unrecorded chunk file at {}";
+    public static final String CHUNK_DELETE_FAILED =
+            "Could not delete stored chunk for file {} and chunk {}";
+    public static final String CHUNK_DELETE_CLEANUP_FAILED =
+            "Could not remove staged deleted chunk file {}";
 
     private WorkerChunkUploadLogMessages()
     {

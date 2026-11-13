@@ -13,6 +13,8 @@ public final class ChunkFileMetadataConstants
     public static final String CHECKSUM_COLUMN = "checksum";
     public static final String LAST_INTEGRITY_CHECKED_AT_COLUMN = "last_integrity_checked_at";
     public static final String INTEGRITY_SCAN_INDEX = "idx_chunk_metadata_integrity_scan";
+    public static final String DELETE_STAGING_PREFIX = "delete-";
+    public static final String DELETE_STAGING_SUFFIX = ".pending";
     public static final String INTEGRITY_SCAN_INDEX_COLUMNS =
             LAST_INTEGRITY_CHECKED_AT_COLUMN + ", " + DatabaseColumnConstants.FILE_ID
                     + ", " + DatabaseColumnConstants.CHUNK_ID;

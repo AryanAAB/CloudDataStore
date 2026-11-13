@@ -8,8 +8,10 @@ public final class WorkerApiConstants
     public static final String API_ROOT = "/worker/files";
     public static final String CHUNK_RESERVATION_PATH = "/{fileId}/chunks/{chunkId}/reservation";
     public static final String RESERVATION_KEY_HEADER = "X-Reservation-Key";
+    public static final String CHUNK_PATH = "/{fileId}/chunks/{chunkId}";
 
     private WorkerApiConstants()
     {
     }
 }
+

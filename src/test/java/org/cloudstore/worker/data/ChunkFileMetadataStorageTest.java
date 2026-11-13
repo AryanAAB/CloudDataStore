@@ -3,8 +3,8 @@ package org.cloudstore.worker.data;
 import org.cloudstore.worker.data.metadata.ChunkFileMetadata;
 import org.cloudstore.worker.data.metadata.ChunkFileMetadataId;
 import org.cloudstore.worker.data.metadata.ChunkFileMetadataRepository;
-import org.cloudstore.worker.upload.WorkerChunkFileStorage;
-import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
+import org.cloudstore.worker.storage.WorkerChunkFileStorage;
+import org.cloudstore.worker.storage.constants.WorkerChunkStorageProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -124,6 +124,24 @@ class ChunkFileMetadataStorageTest
         assertThat(metadataRepository.count()).isZero();
     }
 
+    @Test
+    void deletesStoredChunkFileAndMetadata() throws IOException
+    {
+        byte[] content = "delete-me".getBytes(StandardCharsets.UTF_8);
+        ChunkFileMetadata metadata = chunkFileStorage.store(
+                temporaryFile(content), FILE_ID, CHUNK_ID, content.length, CHECKSUM);
+
+        assertThat(chunkFileStorage.delete(FILE_ID, CHUNK_ID)).isTrue();
+        assertThat(metadataRepository.findById(new ChunkFileMetadataId(FILE_ID, CHUNK_ID))).isEmpty();
+        assertThat(Files.exists(Path.of(metadata.getFileLocation()))).isFalse();
+    }
+
+    @Test
+    void returnsFalseWhenDeletingMissingChunk() throws IOException
+    {
+        assertThat(chunkFileStorage.delete(FILE_ID, CHUNK_ID)).isFalse();
+    }
+
     private Path temporaryFile(byte[] content) throws IOException
     {
         Path temporaryFile = Files.createTempFile(storageDirectory, "incoming-", ".tmp");
@@ -131,3 +149,4 @@ class ChunkFileMetadataStorageTest
         return temporaryFile;
     }
 }
+

@@ -1,10 +1,12 @@
-package org.cloudstore.worker.upload;
+package org.cloudstore.worker.storage;
 
+import org.cloudstore.worker.data.constants.ChunkFileMetadataConstants;
 import org.cloudstore.worker.data.metadata.ChunkFileMetadata;
 import org.cloudstore.worker.data.metadata.ChunkFileMetadataRepository;
-import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
+import org.cloudstore.worker.storage.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadConstants;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadLogMessages;
+import org.cloudstore.worker.upload.constants.WorkerChunkUploadMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -117,6 +119,73 @@ public class WorkerChunkFileStorage
     }
 
     /**
+     * Deletes a chunk's metadata and stored bytes; returns false when it is absent.
+     */
+    public boolean delete(String fileId, String chunkId) throws IOException
+    {
+        Path rootDirectory = storageProperties.getRootDirectory().toAbsolutePath().normalize();
+        Optional<ChunkFileMetadata> existing = metadataTransaction.execute(status ->
+                metadataRepository.findByFileIdAndChunkId(fileId, chunkId));
+        if (existing == null || existing.isEmpty())
+        {
+            return false;
+        }
+
+        Path storedFile = Path.of(existing.get().getFileLocation()).toAbsolutePath().normalize();
+        if (!storedFile.startsWith(rootDirectory))
+        {
+            throw new IOException(WorkerChunkUploadMessages.STORAGE_PATH_OUTSIDE_ROOT);
+        }
+
+        Path stagedFile = rootDirectory.resolve(
+                ChunkFileMetadataConstants.DELETE_STAGING_PREFIX + UUID.randomUUID()
+                        + ChunkFileMetadataConstants.DELETE_STAGING_SUFFIX);
+        boolean fileWasStaged = Files.exists(storedFile);
+        if (fileWasStaged)
+        {
+            Files.move(storedFile, stagedFile, StandardCopyOption.ATOMIC_MOVE);
+        }
+        try
+        {
+            metadataTransaction.executeWithoutResult(status ->
+            {
+                Optional<ChunkFileMetadata> locked =
+                        metadataRepository.findByFileIdAndChunkId(fileId, chunkId);
+                if (locked.isEmpty()
+                        || !locked.get().getFileLocation().equals(existing.get().getFileLocation()))
+                {
+                    throw new IllegalStateException(WorkerChunkUploadMessages.CHUNK_METADATA_CHANGED);
+                }
+                metadataRepository.delete(locked.get());
+                metadataRepository.flush();
+            });
+        } catch (RuntimeException deletionFailure)
+        {
+            if (fileWasStaged && Files.exists(stagedFile))
+            {
+                Files.move(stagedFile, storedFile, StandardCopyOption.REPLACE_EXISTING);
+            }
+            LOGGER.error(WorkerChunkUploadLogMessages.CHUNK_DELETE_FAILED,
+                    fileId, chunkId, deletionFailure);
+            throw deletionFailure;
+        }
+
+        if (fileWasStaged)
+        {
+            try
+            {
+                Files.deleteIfExists(stagedFile);
+            } catch (IOException cleanupFailure)
+            {
+                LOGGER.error(WorkerChunkUploadLogMessages.CHUNK_DELETE_CLEANUP_FAILED,
+                        stagedFile, cleanupFailure);
+                throw cleanupFailure;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Removes a superseded file after commit if no row still references it.
      */
     private void removeReplacedFile(String previousLocation, Path currentFile, Path rootDirectory)
@@ -143,3 +212,4 @@ public class WorkerChunkFileStorage
         }
     }
 }
+

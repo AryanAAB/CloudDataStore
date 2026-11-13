@@ -10,6 +10,10 @@ public final class WorkerChunkUploadMessages
     public static final String RESERVATION_REQUIRED = "No active reservation matches this chunk and key";
     public static final String CHUNK_INTEGRITY_MISMATCH =
             "Uploaded chunk size or SHA-256 checksum does not match the expected value";
+    public static final String STORAGE_PATH_OUTSIDE_ROOT =
+            "Chunk storage path is outside the configured storage directory";
+    public static final String CHUNK_METADATA_CHANGED =
+            "Chunk metadata changed while deletion was in progress";
 
     private WorkerChunkUploadMessages()
     {

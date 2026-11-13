@@ -6,7 +6,8 @@ import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
 import org.cloudstore.worker.integrity.ChunkContentVerifier;
 import org.cloudstore.worker.integrity.constants.ChecksumConstants;
 import org.cloudstore.worker.integrity.constants.ChunkIntegrityProperties;
-import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
+import org.cloudstore.worker.storage.WorkerChunkFileStorage;
+import org.cloudstore.worker.storage.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
 import org.cloudstore.worker.upload.exceptions.ChunkUploadNotReservedException;
 import org.cloudstore.worker.validation.identifier.IdentifierValidator;
@@ -384,3 +385,4 @@ class WorkerChunkUploadTest
         }
     }
 }
+
