@@ -26,7 +26,7 @@ class WorkerChunkUploadControllerTest
                 "file-id", "chunk-id", "key", requestBytes.length, "checksum", request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo((long) requestBytes.length);
+        assertThat(response.getBody()).isEqualTo(requestBytes.length);
         assertThat(uploadService.fileId).isEqualTo("file-id");
         assertThat(uploadService.chunkId).isEqualTo("chunk-id");
         assertThat(uploadService.key).isEqualTo("key");

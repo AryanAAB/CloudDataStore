@@ -12,6 +12,10 @@ public class MasterReportingProperties
 {
     private String workerId;
     private String corruptionReportUrl;
+    private String registrationUrl;
+    private String heartbeatUrl;
+    private String advertisedAddress;
+    private long heartbeatIntervalSeconds = 10L;
 
     public String getWorkerId()
     {
@@ -31,5 +35,45 @@ public class MasterReportingProperties
     public void setCorruptionReportUrl(String corruptionReportUrl)
     {
         this.corruptionReportUrl = corruptionReportUrl;
+    }
+
+    public String getRegistrationUrl()
+    {
+        return registrationUrl;
+    }
+
+    public void setRegistrationUrl(String registrationUrl)
+    {
+        this.registrationUrl = registrationUrl;
+    }
+
+    public String getHeartbeatUrl()
+    {
+        return heartbeatUrl;
+    }
+
+    public void setHeartbeatUrl(String heartbeatUrl)
+    {
+        this.heartbeatUrl = heartbeatUrl;
+    }
+
+    public String getAdvertisedAddress()
+    {
+        return advertisedAddress;
+    }
+
+    public void setAdvertisedAddress(String advertisedAddress)
+    {
+        this.advertisedAddress = advertisedAddress;
+    }
+
+    public long getHeartbeatIntervalSeconds()
+    {
+        return heartbeatIntervalSeconds;
+    }
+
+    public void setHeartbeatIntervalSeconds(long heartbeatIntervalSeconds)
+    {
+        this.heartbeatIntervalSeconds = heartbeatIntervalSeconds;
     }
 }
