@@ -3,8 +3,10 @@ package org.cloudstore.worker.upload;
 import org.cloudstore.worker.data.metadata.ChunkFileMetadata;
 import org.cloudstore.worker.heartbeat.HeartbeatService;
 import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
+import org.cloudstore.worker.integrity.ChunkContentVerifier;
+import org.cloudstore.worker.integrity.constants.ChecksumConstants;
+import org.cloudstore.worker.integrity.constants.ChunkIntegrityProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
-import org.cloudstore.worker.upload.constants.WorkerChunkUploadProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
 import org.cloudstore.worker.upload.exceptions.ChunkUploadNotReservedException;
 import org.cloudstore.worker.validation.identifier.IdentifierValidator;
@@ -37,7 +39,6 @@ class WorkerChunkUploadTest
     private static final String FILE_ID = "upload-file";
     private static final String CHUNK_ID = "upload-chunk";
     private static final String KEY = "upload-key";
-    private static final String SHA_256 = "SHA-256";
     private static final byte[] CONTENT = "valid-upload-content".getBytes(StandardCharsets.UTF_8);
 
     private Path temporaryDirectory;
@@ -58,9 +59,9 @@ class WorkerChunkUploadTest
         leaseHeartbeat = new ControlledLeaseHeartbeat(Duration.ofSeconds(20L));
         WorkerChunkStorageProperties storageProperties = new WorkerChunkStorageProperties();
         storageProperties.setRootDirectory(temporaryDirectory);
-        WorkerChunkUploadProperties uploadProperties = new WorkerChunkUploadProperties();
-        uploadProperties.setBufferSizeBytes(8);
-        ChunkContentVerifier verifier = new ChunkContentVerifier(uploadProperties);
+        ChunkIntegrityProperties integrityProperties = new ChunkIntegrityProperties();
+        integrityProperties.setBufferSizeBytes(8);
+        ChunkContentVerifier verifier = new ChunkContentVerifier(integrityProperties);
         WorkerChunkFileStorage fileStorage = new LocalTestChunkFileStorage(temporaryDirectory);
         IdentifierValidator identifiers = identifier -> identifier == null || identifier.isBlank();
         ReservationKeyValidator keys = key -> key != null && key.isBlank();
@@ -196,7 +197,8 @@ class WorkerChunkUploadTest
 
     private static String checksum(byte[] content) throws Exception
     {
-        return HexFormat.of().formatHex(MessageDigest.getInstance(SHA_256).digest(content));
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance(ChecksumConstants.SHA_256_ALGORITHM).digest(content));
     }
 
     private static final class ControlledLeaseHeartbeat extends WorkerReservationLeaseHeartbeat

@@ -1,7 +1,8 @@
-package org.cloudstore.worker.upload;
+package org.cloudstore.worker.integrity;
 
-import org.cloudstore.worker.upload.constants.WorkerChunkUploadConstants;
-import org.cloudstore.worker.upload.constants.WorkerChunkUploadProperties;
+import org.cloudstore.worker.integrity.constants.ChecksumConstants;
+import org.cloudstore.worker.integrity.constants.ChunkIntegrityProperties;
+import org.cloudstore.worker.integrity.constants.WorkerChunkIntegrityMessages;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
 import org.cloudstore.worker.upload.exceptions.InvalidChunkUploadException;
 import org.springframework.stereotype.Component;
@@ -21,14 +22,14 @@ import java.util.HexFormat;
 @Component
 public class ChunkContentVerifier
 {
-    private final WorkerChunkUploadProperties uploadProperties;
+    private final ChunkIntegrityProperties integrityProperties;
 
     /**
      * Creates the verifier with the configured streaming buffer size.
      */
-    public ChunkContentVerifier(WorkerChunkUploadProperties uploadProperties)
+    public ChunkContentVerifier(ChunkIntegrityProperties integrityProperties)
     {
-        this.uploadProperties = uploadProperties;
+        this.integrityProperties = integrityProperties;
     }
 
     /**
@@ -66,7 +67,7 @@ public class ChunkContentVerifier
             byte[] expectedChecksum) throws IOException
     {
         MessageDigest digest = newSha256Digest();
-        byte[] buffer = new byte[uploadProperties.getBufferSizeBytes()];
+        byte[] buffer = new byte[integrityProperties.getBufferSizeBytes()];
         long totalBytes = 0L;
         try (OutputStream output = Files.newOutputStream(destination))
         {
@@ -91,13 +92,44 @@ public class ChunkContentVerifier
     }
 
     /**
+     * Checks a stored file against its recorded size and hexadecimal checksum.
+     */
+    public String verifyStoredFile(String fileLocation, long expectedSize, String expectedChecksum)
+    {
+        try
+        {
+            Path file = Path.of(fileLocation);
+            if (Files.size(file) != expectedSize)
+            {
+                return WorkerChunkIntegrityMessages.SIZE_MISMATCH;
+            }
+            MessageDigest digest = newSha256Digest();
+            try (InputStream input = Files.newInputStream(file))
+            {
+                byte[] buffer = new byte[integrityProperties.getBufferSizeBytes()];
+                int bytesRead;
+                while ((bytesRead = input.read(buffer)) != -1)
+                {
+                    digest.update(buffer, 0, bytesRead);
+                }
+            }
+            return HexFormat.of().formatHex(digest.digest()).equalsIgnoreCase(expectedChecksum)
+                    ? null
+                    : WorkerChunkIntegrityMessages.CHECKSUM_MISMATCH;
+        } catch (IOException | RuntimeException failure)
+        {
+            return WorkerChunkIntegrityMessages.FILE_UNAVAILABLE;
+        }
+    }
+
+    /**
      * Creates the SHA-256 implementation required by the upload protocol.
      */
     private MessageDigest newSha256Digest()
     {
         try
         {
-            return MessageDigest.getInstance(WorkerChunkUploadConstants.SHA_256_ALGORITHM);
+            return MessageDigest.getInstance(ChecksumConstants.SHA_256_ALGORITHM);
         } catch (NoSuchAlgorithmException impossible)
         {
             throw new IllegalStateException(impossible);

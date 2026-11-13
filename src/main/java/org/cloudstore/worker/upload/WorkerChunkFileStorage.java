@@ -16,6 +16,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -78,6 +79,7 @@ public class WorkerChunkFileStorage
                 targetFile.toString(),
                 fileSize,
                 checksum);
+        metadata.markIntegrityCheckedAt(Instant.now());
         try
         {
             previousFileLocation = metadataTransaction.execute(transactionStatus ->

@@ -2,6 +2,7 @@ package org.cloudstore.worker.upload;
 
 import org.cloudstore.worker.heartbeat.HeartbeatService;
 import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
+import org.cloudstore.worker.integrity.ChunkContentVerifier;
 import org.cloudstore.worker.upload.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadConstants;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadLogMessages;

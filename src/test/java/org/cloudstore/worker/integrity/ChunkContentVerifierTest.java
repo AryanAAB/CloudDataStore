@@ -1,6 +1,7 @@
-package org.cloudstore.worker.upload;
+package org.cloudstore.worker.integrity;
 
-import org.cloudstore.worker.upload.constants.WorkerChunkUploadProperties;
+import org.cloudstore.worker.integrity.constants.ChecksumConstants;
+import org.cloudstore.worker.integrity.constants.ChunkIntegrityProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
 import org.cloudstore.worker.upload.exceptions.InvalidChunkUploadException;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ChunkContentVerifierTest
 {
-    private static final String SHA_256 = "SHA-256";
     private static final String CONTENT = "chunk-payload";
 
     @TempDir
@@ -30,7 +30,7 @@ class ChunkContentVerifierTest
     @BeforeEach
     void setUp()
     {
-        WorkerChunkUploadProperties properties = new WorkerChunkUploadProperties();
+        ChunkIntegrityProperties properties = new ChunkIntegrityProperties();
         properties.setBufferSizeBytes(4);
         verifier = new ChunkContentVerifier(properties);
     }
@@ -95,8 +95,27 @@ class ChunkContentVerifierTest
                 .isInstanceOf(InvalidChunkUploadException.class);
     }
 
+    @Test
+    void verifiesStoredFileAndDetectsSizeChecksumAndMissingFileProblems() throws Exception
+    {
+        byte[] content = CONTENT.getBytes(StandardCharsets.UTF_8);
+        Path storedFile = temporaryDirectory.resolve("stored.chunk");
+        Files.write(storedFile, content);
+
+        assertThat(verifier.verifyStoredFile(storedFile.toString(), content.length, checksum(content)))
+                .isNull();
+        assertThat(verifier.verifyStoredFile(storedFile.toString(), content.length + 1L, checksum(content)))
+                .isEqualTo(org.cloudstore.worker.integrity.constants.WorkerChunkIntegrityMessages.SIZE_MISMATCH);
+        assertThat(verifier.verifyStoredFile(storedFile.toString(), content.length, checksum("bad".getBytes())))
+                .isEqualTo(org.cloudstore.worker.integrity.constants.WorkerChunkIntegrityMessages.CHECKSUM_MISMATCH);
+        assertThat(verifier.verifyStoredFile(
+                temporaryDirectory.resolve("missing.chunk").toString(), content.length, checksum(content)))
+                .isEqualTo(org.cloudstore.worker.integrity.constants.WorkerChunkIntegrityMessages.FILE_UNAVAILABLE);
+    }
+
     private static String checksum(byte[] content) throws Exception
     {
-        return HexFormat.of().formatHex(MessageDigest.getInstance(SHA_256).digest(content));
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance(ChecksumConstants.SHA_256_ALGORITHM).digest(content));
     }
 }

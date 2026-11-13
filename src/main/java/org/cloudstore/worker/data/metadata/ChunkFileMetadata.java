@@ -2,21 +2,26 @@ package org.cloudstore.worker.data.metadata;
 
 import jakarta.persistence.*;
 import org.cloudstore.worker.data.constants.ChunkFileMetadataConstants;
+import org.cloudstore.worker.data.constants.DatabaseColumnConstants;
+
+import java.time.Instant;
 
 /**
  * Database metadata describing a verified chunk stored on this worker.
  */
 @Entity
-@Table(name = ChunkFileMetadataConstants.TABLE_NAME)
+@Table(name = ChunkFileMetadataConstants.TABLE_NAME, indexes = @Index(
+        name = ChunkFileMetadataConstants.INTEGRITY_SCAN_INDEX,
+        columnList = ChunkFileMetadataConstants.INTEGRITY_SCAN_INDEX_COLUMNS))
 @IdClass(ChunkFileMetadataId.class)
 public class ChunkFileMetadata
 {
     @Id
-    @Column(name = ChunkFileMetadataConstants.FILE_ID_COLUMN, nullable = false)
+    @Column(name = DatabaseColumnConstants.FILE_ID, nullable = false)
     private String fileId;
 
     @Id
-    @Column(name = ChunkFileMetadataConstants.CHUNK_ID_COLUMN, nullable = false)
+    @Column(name = DatabaseColumnConstants.CHUNK_ID, nullable = false)
     private String chunkId;
 
     @Column(
@@ -33,6 +38,9 @@ public class ChunkFileMetadata
             nullable = false,
             length = ChunkFileMetadataConstants.CHECKSUM_COLUMN_LENGTH)
     private String checksum;
+
+    @Column(name = ChunkFileMetadataConstants.LAST_INTEGRITY_CHECKED_AT_COLUMN)
+    private Instant lastIntegrityCheckedAt;
 
     /**
      * Required by JPA when loading metadata.
@@ -96,5 +104,21 @@ public class ChunkFileMetadata
     public String getChecksum()
     {
         return checksum;
+    }
+
+    /**
+     * Returns when the integrity scanner last examined this chunk.
+     */
+    public Instant getLastIntegrityCheckedAt()
+    {
+        return lastIntegrityCheckedAt;
+    }
+
+    /**
+     * Records completion of an integrity check.
+     */
+    public void markIntegrityCheckedAt(Instant checkedAt)
+    {
+        this.lastIntegrityCheckedAt = checkedAt;
     }
 }

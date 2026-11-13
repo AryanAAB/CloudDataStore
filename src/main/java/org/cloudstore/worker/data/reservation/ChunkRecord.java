@@ -1,9 +1,8 @@
 package org.cloudstore.worker.data.reservation;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.IdClass;
+import jakarta.persistence.*;
+import org.cloudstore.worker.data.constants.ChunkRecordConstants;
+import org.cloudstore.worker.data.constants.DatabaseColumnConstants;
 
 import java.time.Instant;
 
@@ -11,18 +10,22 @@ import java.time.Instant;
  * Persistent worker record for a chunk assigned to a file.
  */
 @Entity
+@Table(name = ChunkRecordConstants.TABLE_NAME)
 @IdClass(ChunkRecordId.class)
 public class ChunkRecord
 {
     @Id
+    @Column(name = DatabaseColumnConstants.FILE_ID, nullable = false)
     private String fileId;
 
     @Id
+    @Column(name = DatabaseColumnConstants.CHUNK_ID, nullable = false)
     private String chunkId;
 
+    @Column(name = ChunkRecordConstants.RESERVATION_KEY_COLUMN)
     private String reservationKey;
 
-    @Column(nullable = false)
+    @Column(name = ChunkRecordConstants.EXPIRES_AT_COLUMN, nullable = false)
     private Instant expiresAt;
 
     /**

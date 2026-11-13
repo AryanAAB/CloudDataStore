@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -89,6 +90,9 @@ class ChunkFileMetadataStorageTest
         assertThat(firstDatabaseRow).isPresent();
         assertThat(firstDatabaseRow.orElseThrow().getFileSize()).isEqualTo(firstContent.length);
         assertThat(firstDatabaseRow.orElseThrow().getChecksum()).isEqualTo(CHECKSUM);
+        assertThat(firstDatabaseRow.orElseThrow().getLastIntegrityCheckedAt())
+                .isNotNull()
+                .isBeforeOrEqualTo(Instant.now());
 
         byte[] replacementContent = "replacement-content".getBytes(StandardCharsets.UTF_8);
         Path replacementTemporaryFile = temporaryFile(replacementContent);

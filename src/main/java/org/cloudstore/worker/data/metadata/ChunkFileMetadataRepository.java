@@ -1,8 +1,11 @@
 package org.cloudstore.worker.data.metadata;
 
 import jakarta.persistence.LockModeType;
+import org.cloudstore.worker.data.constants.ChunkFileMetadataQueries;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
 
@@ -22,4 +25,10 @@ public interface ChunkFileMetadataRepository
      * Checks whether any metadata row still references the supplied storage path.
      */
     boolean existsByFileLocation(String fileLocation);
+
+    /**
+     * Returns oldest or never-checked chunks first, with stable tie ordering.
+     */
+    @Query(ChunkFileMetadataQueries.FIND_INTEGRITY_CHECK_BATCH)
+    java.util.List<ChunkFileMetadata> findIntegrityCheckBatch(Pageable pageable);
 }
