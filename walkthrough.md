@@ -145,3 +145,4 @@ curl http://localhost:8080/api/v1/admin/objects/<OBJECT_ID>/topology
 docker exec -it worker1 sh -c 'echo "CORRUPT" > /data/worker/chunks/<CHUNK_FILE>'
 curl -o retrieved.mp4 http://localhost:8080/api/v1/objects/<OBJECT_ID> # Succeeds via fallback!
 ```
+

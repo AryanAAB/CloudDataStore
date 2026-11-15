@@ -415,6 +415,46 @@ public class UProxyService
                 .filter(obj -> !StoredObject.STATUS_DELETED.equalsIgnoreCase(obj.getStatus()));
     }
 
+    public List<org.cloudstore.controller.dto.StoredObjectResponse.ChunkLocationSummary> getChunkLocationSummaries(String objectId)
+    {
+        List<ChunkRecord> chunks = chunkRecordRepository.findByObjectIdOrderByChunkIndexAsc(objectId);
+        List<org.cloudstore.controller.dto.StoredObjectResponse.ChunkLocationSummary> summaries = new ArrayList<>();
+        for (ChunkRecord chunk : chunks)
+        {
+            List<ChunkReplica> replicas = chunkReplicaRepository.findByChunkId(chunk.getChunkId());
+            List<String> locations = replicas.stream()
+                    .filter(ChunkReplica::isHealthy)
+                    .map(ChunkReplica::getWorkerId)
+                    .toList();
+
+            summaries.add(new org.cloudstore.controller.dto.StoredObjectResponse.ChunkLocationSummary(
+                    chunk.getChunkId(),
+                    chunk.getChunkIndex(),
+                    chunk.getChunkSize(),
+                    chunk.getSha256Hash(),
+                    locations));
+        }
+        return summaries;
+    }
+
+    public org.cloudstore.controller.dto.StoredObjectResponse buildObjectResponse(StoredObject obj)
+    {
+        List<org.cloudstore.controller.dto.StoredObjectResponse.ChunkLocationSummary> chunkSummaries =
+                getChunkLocationSummaries(obj.getObjectId());
+        return new org.cloudstore.controller.dto.StoredObjectResponse(
+                obj.getObjectId(),
+                obj.getName(),
+                obj.getSize(),
+                obj.getContentType(),
+                obj.getChecksum(),
+                obj.getTotalChunks(),
+                obj.getStatus(),
+                obj.getCreatedAt(),
+                obj.getUpdatedAt(),
+                obj.getCustomMetadata(),
+                chunkSummaries);
+    }
+
     @Transactional
     public Optional<StoredObject> updateCustomMetadata(String objectId, Map<String, String> patchMetadata)
     {

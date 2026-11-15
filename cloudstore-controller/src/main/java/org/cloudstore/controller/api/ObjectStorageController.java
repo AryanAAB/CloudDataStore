@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.cloudstore.controller.dto.*;
+import org.cloudstore.controller.exception.ObjectNotFoundException;
 import org.cloudstore.controller.master.StorageAccountingService;
 import org.cloudstore.controller.master.WorkerRegistryService;
 import org.cloudstore.controller.model.StoredObject;
@@ -73,7 +74,7 @@ public class ObjectStorageController
         try (InputStream in = request.getInputStream())
         {
             StoredObject committed = uProxyService.processStreamUpload(sessionId, sessionKey, in);
-            return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(committed));
+            return ResponseEntity.status(HttpStatus.CREATED).body(uProxyService.buildObjectResponse(committed));
         }
     }
 
@@ -118,7 +119,7 @@ public class ObjectStorageController
         {
             StoredObject committed = uProxyService.processStreamUpload(
                     session.sessionId(), session.sessionKey(), in);
-            return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(committed));
+            return ResponseEntity.status(HttpStatus.CREATED).body(uProxyService.buildObjectResponse(committed));
         }
     }
 
@@ -131,7 +132,7 @@ public class ObjectStorageController
         Optional<StoredObject> opt = uProxyService.getObject(objectId);
         if (opt.isEmpty() || !StoredObject.STATUS_COMMITTED.equalsIgnoreCase(opt.get().getStatus()))
         {
-            return ResponseEntity.notFound().build();
+            throw new ObjectNotFoundException("Object not found: " + objectId);
         }
 
         StoredObject obj = opt.get();
@@ -162,9 +163,9 @@ public class ObjectStorageController
     @GetMapping("/objects/{objectId}/metadata")
     public ResponseEntity<StoredObjectResponse> getObjectMetadata(@PathVariable String objectId)
     {
-        return uProxyService.getObject(objectId)
-                .map(obj -> ResponseEntity.ok(toResponse(obj)))
-                .orElse(ResponseEntity.notFound().build());
+        StoredObject obj = uProxyService.getObject(objectId)
+                .orElseThrow(() -> new ObjectNotFoundException("Object not found: " + objectId));
+        return ResponseEntity.ok(uProxyService.buildObjectResponse(obj));
     }
 
     // ==========================================
@@ -175,9 +176,9 @@ public class ObjectStorageController
             @PathVariable String objectId,
             @RequestBody Map<String, String> patchMetadata)
     {
-        return uProxyService.updateCustomMetadata(objectId, patchMetadata)
-                .map(obj -> ResponseEntity.ok(toResponse(obj)))
-                .orElse(ResponseEntity.notFound().build());
+        StoredObject updated = uProxyService.updateCustomMetadata(objectId, patchMetadata)
+                .orElseThrow(() -> new ObjectNotFoundException("Object not found: " + objectId));
+        return ResponseEntity.ok(uProxyService.buildObjectResponse(updated));
     }
 
     // ==========================================
@@ -187,16 +188,35 @@ public class ObjectStorageController
     public ResponseEntity<Void> deleteObject(@PathVariable String objectId)
     {
         boolean deleted = uProxyService.deleteObject(objectId);
-        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+        if (!deleted)
+        {
+            throw new ObjectNotFoundException("Object not found: " + objectId);
+        }
+        return ResponseEntity.noContent().build();
     }
 
     // ==========================================
-    // List Objects
+    // List Objects (paginated)
     // ==========================================
     @GetMapping("/objects")
-    public ResponseEntity<List<StoredObjectSummary>> listObjects()
+    public ResponseEntity<List<StoredObjectSummary>> listObjects(
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "50") int size)
     {
-        List<StoredObjectSummary> summaries = uProxyService.listCommittedObjects().stream()
+        if (page < 0 || size < 1 || size > 500)
+        {
+            throw new IllegalArgumentException("page must be >= 0 and size must be between 1 and 500");
+        }
+
+        List<StoredObject> all = uProxyService.listCommittedObjects();
+        int fromIndex = page * size;
+        if (fromIndex >= all.size())
+        {
+            return ResponseEntity.ok(List.of());
+        }
+        int toIndex = Math.min(fromIndex + size, all.size());
+
+        List<StoredObjectSummary> summaries = all.subList(fromIndex, toIndex).stream()
                 .map(obj -> new StoredObjectSummary(
                         obj.getObjectId(),
                         obj.getName(),
@@ -235,19 +255,5 @@ public class ObjectStorageController
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    private StoredObjectResponse toResponse(StoredObject obj)
-    {
-        return new StoredObjectResponse(
-                obj.getObjectId(),
-                obj.getName(),
-                obj.getSize(),
-                obj.getContentType(),
-                obj.getChecksum(),
-                obj.getTotalChunks(),
-                obj.getStatus(),
-                obj.getCreatedAt(),
-                obj.getUpdatedAt(),
-                obj.getCustomMetadata());
-    }
 }
 
