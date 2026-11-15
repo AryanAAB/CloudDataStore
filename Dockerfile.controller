@@ -1,0 +1,21 @@
+# Multi-stage Dockerfile for CloudDataStore Controller
+FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+WORKDIR /app
+COPY pom.xml .
+COPY cloudstore-common/pom.xml cloudstore-common/
+COPY cloudstore-worker/pom.xml cloudstore-worker/
+COPY cloudstore-controller/pom.xml cloudstore-controller/
+COPY cloudstore-common/src cloudstore-common/src
+COPY cloudstore-controller/src cloudstore-controller/src
+
+# Build common and controller modules
+RUN mvn clean package -pl cloudstore-common,cloudstore-controller -DskipTests
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+COPY --from=builder /app/cloudstore-controller/target/controller.jar app.jar
+
+ENV PORT=8080
+EXPOSE 8080
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -224,6 +224,17 @@ public class ObjectStorageController
         return ResponseEntity.ok(status);
     }
 
+    // ==========================================
+    // Admin Object Chunk Replication Topology
+    // ==========================================
+    @GetMapping("/admin/objects/{objectId}/topology")
+    public ResponseEntity<ChunkTopologyResponse> getObjectTopology(@PathVariable String objectId)
+    {
+        return uProxyService.getObjectTopology(objectId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     private StoredObjectResponse toResponse(StoredObject obj)
     {
         return new StoredObjectResponse(

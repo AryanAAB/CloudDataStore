@@ -440,6 +440,53 @@ public class UProxyService
         return objectDeletionService.deleteObject(objectId);
     }
 
+    public Optional<org.cloudstore.controller.dto.ChunkTopologyResponse> getObjectTopology(String objectId)
+    {
+        Optional<StoredObject> opt = storedObjectRepository.findById(objectId);
+        if (opt.isEmpty() || StoredObject.STATUS_DELETED.equalsIgnoreCase(opt.get().getStatus()))
+        {
+            return Optional.empty();
+        }
+
+        StoredObject obj = opt.get();
+        List<ChunkRecord> chunks = chunkRecordRepository.findByObjectIdOrderByChunkIndexAsc(objectId);
+        int requiredReplicas = placementEngine.getReplicationFactor();
+
+        List<org.cloudstore.controller.dto.ChunkTopologyResponse.ChunkTopologyItem> chunkItems = new ArrayList<>();
+        for (ChunkRecord chunk : chunks)
+        {
+            List<ChunkReplica> replicas = chunkReplicaRepository.findByChunkId(chunk.getChunkId());
+            List<org.cloudstore.controller.dto.ChunkTopologyResponse.ChunkReplicaInfo> replicaInfos = new ArrayList<>();
+            long liveHealthy = 0;
+
+            for (ChunkReplica r : replicas)
+            {
+                Optional<WorkerNode> w = workerRegistry.getWorker(r.getWorkerId());
+                String address = w.map(WorkerNode::getAddress).orElse("unknown");
+                String workerStatus = w.map(WorkerNode::getStatus).orElse("UNKNOWN");
+
+                if (r.isHealthy() && w.isPresent() && w.get().isUp())
+                {
+                    liveHealthy++;
+                }
+
+                replicaInfos.add(new org.cloudstore.controller.dto.ChunkTopologyResponse.ChunkReplicaInfo(
+                        r.getWorkerId(), address, r.getReplicaState(), workerStatus));
+            }
+
+            chunkItems.add(new org.cloudstore.controller.dto.ChunkTopologyResponse.ChunkTopologyItem(
+                    chunk.getChunkId(),
+                    chunk.getChunkIndex(),
+                    chunk.getChunkSize(),
+                    chunk.getSha256Hash(),
+                    liveHealthy,
+                    replicaInfos));
+        }
+
+        return Optional.of(new org.cloudstore.controller.dto.ChunkTopologyResponse(
+                obj.getObjectId(), obj.getName(), obj.getTotalChunks(), requiredReplicas, chunkItems));
+    }
+
     public List<StoredObject> listCommittedObjects()
     {
         return storedObjectRepository.findByStatus(StoredObject.STATUS_COMMITTED);
