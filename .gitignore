@@ -32,6 +32,11 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+# Project documentation / plans
+High_Level_Plan.md
+Mini_Distributed_Cloud_Object_Store.md
+implementation_plan.md
+
 ### VS Code ###
 .vscode/
 
