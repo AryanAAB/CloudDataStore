@@ -157,6 +157,40 @@ public class ObjectStorageController
     }
 
     // ==========================================
+    // Get Object Metadata
+    // ==========================================
+    @GetMapping("/objects/{objectId}/metadata")
+    public ResponseEntity<StoredObjectResponse> getObjectMetadata(@PathVariable String objectId)
+    {
+        return uProxyService.getObject(objectId)
+                .map(obj -> ResponseEntity.ok(toResponse(obj)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ==========================================
+    // Update Object Custom Metadata (PATCH)
+    // ==========================================
+    @PatchMapping("/objects/{objectId}/metadata")
+    public ResponseEntity<StoredObjectResponse> updateObjectMetadata(
+            @PathVariable String objectId,
+            @RequestBody Map<String, String> patchMetadata)
+    {
+        return uProxyService.updateCustomMetadata(objectId, patchMetadata)
+                .map(obj -> ResponseEntity.ok(toResponse(obj)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ==========================================
+    // Delete Object
+    // ==========================================
+    @DeleteMapping("/objects/{objectId}")
+    public ResponseEntity<Void> deleteObject(@PathVariable String objectId)
+    {
+        boolean deleted = uProxyService.deleteObject(objectId);
+        return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+    }
+
+    // ==========================================
     // List Objects
     // ==========================================
     @GetMapping("/objects")

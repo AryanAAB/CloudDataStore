@@ -38,6 +38,7 @@ public class UProxyService
     private final StorageAccountingService storageAccounting;
     private final PlacementEngine placementEngine;
     private final WorkerChunkClient workerChunkClient;
+    private final org.cloudstore.controller.master.ObjectDeletionService objectDeletionService;
 
     private final StoredObjectRepository storedObjectRepository;
     private final ChunkRecordRepository chunkRecordRepository;
@@ -53,6 +54,7 @@ public class UProxyService
             StorageAccountingService storageAccounting,
             PlacementEngine placementEngine,
             WorkerChunkClient workerChunkClient,
+            org.cloudstore.controller.master.ObjectDeletionService objectDeletionService,
             StoredObjectRepository storedObjectRepository,
             ChunkRecordRepository chunkRecordRepository,
             ChunkReplicaRepository chunkReplicaRepository,
@@ -64,6 +66,7 @@ public class UProxyService
         this.storageAccounting = storageAccounting;
         this.placementEngine = placementEngine;
         this.workerChunkClient = workerChunkClient;
+        this.objectDeletionService = objectDeletionService;
         this.storedObjectRepository = storedObjectRepository;
         this.chunkRecordRepository = chunkRecordRepository;
         this.chunkReplicaRepository = chunkReplicaRepository;
@@ -408,7 +411,33 @@ public class UProxyService
 
     public Optional<StoredObject> getObject(String objectId)
     {
-        return storedObjectRepository.findById(objectId);
+        return storedObjectRepository.findById(objectId)
+                .filter(obj -> !StoredObject.STATUS_DELETED.equalsIgnoreCase(obj.getStatus()));
+    }
+
+    @Transactional
+    public Optional<StoredObject> updateCustomMetadata(String objectId, Map<String, String> patchMetadata)
+    {
+        Optional<StoredObject> opt = storedObjectRepository.findById(objectId);
+        if (opt.isEmpty() || StoredObject.STATUS_DELETED.equalsIgnoreCase(opt.get().getStatus()))
+        {
+            return Optional.empty();
+        }
+
+        StoredObject object = opt.get();
+        if (patchMetadata != null)
+        {
+            object.getCustomMetadata().putAll(patchMetadata);
+        }
+        object.setUpdatedAt(Instant.now());
+        storedObjectRepository.save(object);
+        LOGGER.info("Updated custom metadata for object {}: {}", objectId, object.getCustomMetadata());
+        return Optional.of(object);
+    }
+
+    public boolean deleteObject(String objectId)
+    {
+        return objectDeletionService.deleteObject(objectId);
     }
 
     public List<StoredObject> listCommittedObjects()

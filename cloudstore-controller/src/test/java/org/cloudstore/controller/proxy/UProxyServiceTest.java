@@ -29,6 +29,7 @@ class UProxyServiceTest
     private StorageAccountingService storageAccounting;
     private PlacementEngine placementEngine;
     private WorkerChunkClient workerChunkClient;
+    private org.cloudstore.controller.master.ObjectDeletionService objectDeletionService;
 
     private StoredObjectRepository storedObjectRepository;
     private ChunkRecordRepository chunkRecordRepository;
@@ -44,6 +45,7 @@ class UProxyServiceTest
         storageAccounting = mock(StorageAccountingService.class);
         placementEngine = mock(PlacementEngine.class);
         workerChunkClient = mock(WorkerChunkClient.class);
+        objectDeletionService = mock(org.cloudstore.controller.master.ObjectDeletionService.class);
 
         storedObjectRepository = mock(StoredObjectRepository.class);
         chunkRecordRepository = mock(ChunkRecordRepository.class);
@@ -57,6 +59,7 @@ class UProxyServiceTest
                 storageAccounting,
                 placementEngine,
                 workerChunkClient,
+                objectDeletionService,
                 storedObjectRepository,
                 chunkRecordRepository,
                 chunkReplicaRepository,
@@ -170,6 +173,32 @@ class UProxyServiceTest
         // Verify worker-1 replica was flagged as CORRUPT
         assertEquals(ChunkReplica.STATE_CORRUPT, r1.getReplicaState());
         verify(chunkReplicaRepository).save(r1);
+    }
+
+    @Test
+    void updateCustomMetadata_mergesNewKeyValues()
+    {
+        String objectId = "obj-300";
+        StoredObject obj = new StoredObject(objectId, "photo.jpg", 2048L, "image/jpeg", 2);
+        obj.getCustomMetadata().put("owner", "alice");
+        when(storedObjectRepository.findById(objectId)).thenReturn(Optional.of(obj));
+
+        Optional<StoredObject> updated = uProxyService.updateCustomMetadata(
+                objectId, Map.of("filter", "sepia", "owner", "bob"));
+
+        assertTrue(updated.isPresent());
+        assertEquals("bob", updated.get().getCustomMetadata().get("owner"));
+        assertEquals("sepia", updated.get().getCustomMetadata().get("filter"));
+        verify(storedObjectRepository).save(obj);
+    }
+
+    @Test
+    void deleteObject_delegatesToDeletionService()
+    {
+        when(objectDeletionService.deleteObject("obj-400")).thenReturn(true);
+        boolean deleted = uProxyService.deleteObject("obj-400");
+        assertTrue(deleted);
+        verify(objectDeletionService).deleteObject("obj-400");
     }
 }
 

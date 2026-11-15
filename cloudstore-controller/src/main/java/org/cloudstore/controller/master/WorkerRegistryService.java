@@ -23,15 +23,18 @@ public class WorkerRegistryService
     private static final Logger LOGGER = LoggerFactory.getLogger(WorkerRegistryService.class);
 
     private final WorkerNodeRepository workerRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final Duration heartbeatTimeout;
     private final long defaultWorkerCapacity;
 
     public WorkerRegistryService(
             WorkerNodeRepository workerRepository,
+            org.springframework.context.ApplicationEventPublisher eventPublisher,
             @Value("${controller.worker.heartbeat-timeout-seconds:10}") long timeoutSeconds,
             @Value("${controller.worker.default-capacity-bytes:10737418240}") long defaultCapacity)
     {
         this.workerRepository = workerRepository;
+        this.eventPublisher = eventPublisher;
         this.heartbeatTimeout = Duration.ofSeconds(timeoutSeconds);
         this.defaultWorkerCapacity = defaultCapacity;
     }
@@ -48,6 +51,7 @@ public class WorkerRegistryService
             node.setLastHeartbeat(Instant.now());
             workerRepository.save(node);
             LOGGER.info("Worker {} re-registered at {}", workerId, address);
+            eventPublisher.publishEvent(new org.cloudstore.controller.master.event.WorkerReconnectedEvent(workerId));
         }
         else
         {
@@ -67,6 +71,7 @@ public class WorkerRegistryService
             {
                 node.setStatus(WorkerNode.STATUS_UP);
                 LOGGER.info("Worker {} transitioned from DOWN to UP on heartbeat", workerId);
+                eventPublisher.publishEvent(new org.cloudstore.controller.master.event.WorkerReconnectedEvent(workerId));
             }
             workerRepository.save(node);
         }, () -> LOGGER.warn("Received heartbeat from unknown worker {}", workerId));
