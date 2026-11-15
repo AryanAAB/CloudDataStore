@@ -46,7 +46,7 @@ class WorkerChunkUploadControllerTest
 
         private CapturingChunkUpload()
         {
-            super(null, null, null, null, null, null, null);
+            super(null, null, null, null, null, null);
         }
 
         @Override

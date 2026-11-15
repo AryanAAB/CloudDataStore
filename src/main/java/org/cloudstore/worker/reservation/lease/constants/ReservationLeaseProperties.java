@@ -1,4 +1,4 @@
-package org.cloudstore.worker.heartbeat.constants;
+package org.cloudstore.worker.reservation.lease.constants;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @ConfigurationProperties(prefix = "worker.reservation.heartbeat")
-public class WorkerReservationLeaseHeartbeatProperties
+public class ReservationLeaseProperties
 {
     private long intervalSeconds;
 

@@ -2,10 +2,10 @@ package org.cloudstore.worker.upload;
 
 import org.cloudstore.worker.data.metadata.ChunkFileMetadata;
 import org.cloudstore.worker.heartbeat.HeartbeatService;
-import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
 import org.cloudstore.worker.integrity.ChunkContentVerifier;
 import org.cloudstore.worker.integrity.constants.ChecksumConstants;
 import org.cloudstore.worker.integrity.constants.ChunkIntegrityProperties;
+import org.cloudstore.worker.reservation.lease.ReservationLeaseService;
 import org.cloudstore.worker.storage.WorkerChunkFileStorage;
 import org.cloudstore.worker.storage.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkIntegrityException;
@@ -57,7 +57,7 @@ class WorkerChunkUploadTest
         scheduler.setPoolSize(1);
         scheduler.initialize();
 
-        leaseHeartbeat = new ControlledLeaseHeartbeat(Duration.ofSeconds(20L));
+        leaseHeartbeat = new ControlledLeaseHeartbeat(Duration.ofSeconds(20L), scheduler);
         WorkerChunkStorageProperties storageProperties = new WorkerChunkStorageProperties();
         storageProperties.setRootDirectory(temporaryDirectory);
         ChunkIntegrityProperties integrityProperties = new ChunkIntegrityProperties();
@@ -71,7 +71,6 @@ class WorkerChunkUploadTest
                 keys,
                 storageProperties,
                 leaseHeartbeat,
-                new HeartbeatService(scheduler),
                 verifier,
                 fileStorage);
     }
@@ -202,16 +201,16 @@ class WorkerChunkUploadTest
                 MessageDigest.getInstance(ChecksumConstants.SHA_256_ALGORITHM).digest(content));
     }
 
-    private static final class ControlledLeaseHeartbeat extends WorkerReservationLeaseHeartbeat
+    private static final class ControlledLeaseHeartbeat extends ReservationLeaseService
     {
         private final AtomicInteger renewalCount = new AtomicInteger();
         private final CountDownLatch additionalRenewal = new CountDownLatch(1);
         private volatile int failedRenewalNumber = Integer.MAX_VALUE;
         private volatile Duration heartbeatInterval;
 
-        private ControlledLeaseHeartbeat(Duration heartbeatInterval)
+        private ControlledLeaseHeartbeat(Duration heartbeatInterval, ThreadPoolTaskScheduler scheduler)
         {
-            super(null, null, null, null);
+            super(null, null, null, new HeartbeatService(scheduler));
             this.heartbeatInterval = heartbeatInterval;
         }
 

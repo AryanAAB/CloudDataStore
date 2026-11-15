@@ -1,8 +1,8 @@
 package org.cloudstore.worker.upload;
 
-import org.cloudstore.worker.heartbeat.HeartbeatService;
-import org.cloudstore.worker.heartbeat.WorkerReservationLeaseHeartbeat;
 import org.cloudstore.worker.integrity.ChunkContentVerifier;
+import org.cloudstore.worker.reservation.lease.ReservationLeaseService;
+import org.cloudstore.worker.reservation.lease.ReservationLeaseService.LeaseRenewalHandle;
 import org.cloudstore.worker.storage.WorkerChunkFileStorage;
 import org.cloudstore.worker.storage.constants.WorkerChunkStorageProperties;
 import org.cloudstore.worker.upload.constants.WorkerChunkUploadConstants;
@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HexFormat;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Validates a worker reservation, verifies the chunk stream, and stores the file with metadata.
@@ -33,8 +32,7 @@ public class WorkerChunkUpload
     private final IdentifierValidator identifierValidator;
     private final ReservationKeyValidator keyValidator;
     private final WorkerChunkStorageProperties storageProperties;
-    private final WorkerReservationLeaseHeartbeat leaseHeartbeat;
-    private final HeartbeatService heartbeatService;
+    private final ReservationLeaseService leaseService;
     private final ChunkContentVerifier contentVerifier;
     private final WorkerChunkFileStorage chunkFileStorage;
 
@@ -45,16 +43,14 @@ public class WorkerChunkUpload
             IdentifierValidator identifierValidator,
             ReservationKeyValidator keyValidator,
             WorkerChunkStorageProperties storageProperties,
-            WorkerReservationLeaseHeartbeat leaseHeartbeat,
-            HeartbeatService heartbeatService,
+            ReservationLeaseService leaseService,
             ChunkContentVerifier contentVerifier,
             WorkerChunkFileStorage chunkFileStorage)
     {
         this.identifierValidator = identifierValidator;
         this.keyValidator = keyValidator;
         this.storageProperties = storageProperties;
-        this.leaseHeartbeat = leaseHeartbeat;
-        this.heartbeatService = heartbeatService;
+        this.leaseService = leaseService;
         this.contentVerifier = contentVerifier;
         this.chunkFileStorage = chunkFileStorage;
     }
@@ -89,12 +85,8 @@ public class WorkerChunkUpload
         byte[] expectedChecksumBytes =
                 contentVerifier.validateExpectedValues(expectedSize, expectedChecksum);
 
-        leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
-
-        AtomicBoolean leaseLost = new AtomicBoolean(false);
-        HeartbeatService.HeartbeatHandle heartbeatTask = heartbeatService.start(
-                () -> renewDuringUpload(fileId, chunkId, key, content, leaseLost),
-                leaseHeartbeat.getHeartbeatInterval());
+        LeaseRenewalHandle renewal = leaseService.startRenewal(
+                fileId, chunkId, key, () -> closeUploadStream(content, fileId, chunkId));
         Path chunkDirectory = storageProperties.getRootDirectory();
         Path temporaryFile = null;
         try
@@ -111,18 +103,18 @@ public class WorkerChunkUpload
                         content, temporaryFile, expectedSize, expectedChecksumBytes);
             } catch (IOException uploadFailure)
             {
-                if (leaseLost.get())
+                if (renewal.isLeaseLost())
                 {
                     throw new ChunkUploadNotReservedException();
                 }
                 throw uploadFailure;
             }
-            if (leaseLost.get())
+            if (renewal.isLeaseLost())
             {
                 throw new ChunkUploadNotReservedException();
             }
-            heartbeatTask.close();
-            leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
+            renewal.close();
+            leaseService.renewOrThrowIfInactive(fileId, chunkId, key);
             String verifiedChecksum = HexFormat.of().formatHex(expectedChecksumBytes);
             chunkFileStorage.store(
                     temporaryFile,
@@ -134,7 +126,7 @@ public class WorkerChunkUpload
             return size;
         } finally
         {
-            heartbeatTask.close();
+            renewal.close();
             if (temporaryFile != null)
             {
                 Files.deleteIfExists(temporaryFile);
@@ -143,33 +135,16 @@ public class WorkerChunkUpload
     }
 
     /**
-     * Renews the reservation while the request thread is blocked waiting for chunk bytes.
+     * Closes the incoming stream after the shared lease service detects lease loss.
      */
-    private void renewDuringUpload(
-            String fileId,
-            String chunkId,
-            String key,
-            InputStream content,
-            AtomicBoolean leaseLost)
+    private void closeUploadStream(InputStream content, String fileId, String chunkId)
     {
-        if (leaseLost.get())
-        {
-            return;
-        }
         try
         {
-            leaseHeartbeat.renewOrThrowIfInactive(fileId, chunkId, key);
-        } catch (RuntimeException heartbeatFailure)
+            content.close();
+        } catch (IOException closeFailure)
         {
-            leaseLost.set(true);
-            try
-            {
-                content.close();
-            } catch (IOException closeFailure)
-            {
-                heartbeatFailure.addSuppressed(closeFailure);
-            }
-            LOGGER.warn(WorkerChunkUploadLogMessages.HEARTBEAT_FAILED, fileId, chunkId, heartbeatFailure);
+            LOGGER.warn(WorkerChunkUploadLogMessages.HEARTBEAT_FAILED, fileId, chunkId, closeFailure);
         }
     }
 

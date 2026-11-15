@@ -14,6 +14,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -183,6 +184,42 @@ public class WorkerChunkFileStorage
             }
         }
         return true;
+    }
+
+    /**
+     * Opens a stored chunk for streaming, returning empty when no metadata exists.
+     */
+    public Optional<ChunkReadHandle> openForRead(String fileId, String chunkId) throws IOException
+    {
+        Optional<ChunkFileMetadata> metadata = metadataRepository.findByFileIdAndChunkId(fileId, chunkId);
+        if (metadata.isEmpty())
+        {
+            return Optional.empty();
+        }
+
+        Path rootDirectory = storageProperties.getRootDirectory().toAbsolutePath().normalize();
+        Path storedFile = Path.of(metadata.get().getFileLocation()).toAbsolutePath().normalize();
+        if (!storedFile.startsWith(rootDirectory))
+        {
+            throw new IOException(WorkerChunkUploadMessages.STORAGE_PATH_OUTSIDE_ROOT);
+        }
+        if (!Files.isRegularFile(storedFile))
+        {
+            return Optional.empty();
+        }
+        return Optional.of(new ChunkReadHandle(Files.newInputStream(storedFile), metadata.get().getFileSize()));
+    }
+
+    /**
+     * Open input stream and declared size for one stored chunk.
+     */
+    public record ChunkReadHandle(InputStream inputStream, long fileSize) implements AutoCloseable
+    {
+        @Override
+        public void close() throws IOException
+        {
+            inputStream.close();
+        }
     }
 
     /**

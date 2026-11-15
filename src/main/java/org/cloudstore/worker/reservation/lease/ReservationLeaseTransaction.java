@@ -1,8 +1,7 @@
-package org.cloudstore.worker.heartbeat;
+package org.cloudstore.worker.reservation.lease;
 
 import org.cloudstore.worker.data.reservation.ChunkRecord;
 import org.cloudstore.worker.data.reservation.ChunkRecordRepository;
-import org.cloudstore.worker.heartbeat.constants.WorkerReservationLeaseHeartbeatProperties;
 import org.cloudstore.worker.reservation.constants.WorkerReservationProperties;
 import org.cloudstore.worker.upload.exceptions.ChunkUploadNotReservedException;
 import org.cloudstore.worker.validation.keycomparison.strategies.ReservationKeyComparisonStrategy;
@@ -10,39 +9,35 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
 /**
- * Renews active upload reservations in short, independent database transactions.
+ * Performs reservation lease renewal inside a Spring-proxied transaction.
  */
 @Service
-public class WorkerReservationLeaseHeartbeat
+public class ReservationLeaseTransaction
 {
     private final ChunkRecordRepository chunkRecords;
     private final WorkerReservationProperties reservationProperties;
-    private final WorkerReservationLeaseHeartbeatProperties heartbeatProperties;
     private final ReservationKeyComparisonStrategy keyComparisonStrategy;
 
     /**
-     * Creates the heartbeat operation with reservation persistence and lease settings.
+     * Creates the database operation with reservation persistence and policy dependencies.
      */
-    public WorkerReservationLeaseHeartbeat(
+    public ReservationLeaseTransaction(
             ChunkRecordRepository chunkRecords,
             WorkerReservationProperties reservationProperties,
-            WorkerReservationLeaseHeartbeatProperties heartbeatProperties,
             ReservationKeyComparisonStrategy keyComparisonStrategy)
     {
         this.chunkRecords = chunkRecords;
         this.reservationProperties = reservationProperties;
-        this.heartbeatProperties = heartbeatProperties;
         this.keyComparisonStrategy = keyComparisonStrategy;
     }
 
     /**
      * Extends the lease only while the same reservation key is still active.
-     * The row lock serializes this update against the cleaner's expiry deletion.
+     * The repository acquires a write lock, serializing this update against competing updates.
      *
      * @throws ChunkUploadNotReservedException when no active reservation matches
      */
@@ -60,18 +55,5 @@ public class WorkerReservationLeaseHeartbeat
 
         reservation.get().renew(key, now.plusSeconds(reservationProperties.getTtlSeconds()));
         chunkRecords.saveAndFlush(reservation.get());
-    }
-
-    /**
-     * Returns the configured heartbeat interval, capped at one third of the reservation lease.
-     */
-    public Duration getHeartbeatInterval()
-    {
-        Duration leaseSafeInterval = Duration.ofSeconds(reservationProperties.getTtlSeconds())
-                .dividedBy(3L);
-        Duration configuredInterval = Duration.ofSeconds(heartbeatProperties.getIntervalSeconds());
-        return configuredInterval.compareTo(leaseSafeInterval) < 0
-                ? configuredInterval
-                : leaseSafeInterval;
     }
 }
