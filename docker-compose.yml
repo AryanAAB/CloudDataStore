@@ -1,0 +1,121 @@
+services:
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.controller
+    container_name: controller
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_URL=jdbc:h2:file:/data/controller/metadata;DB_CLOSE_ON_EXIT=FALSE
+      - CLUSTER_REPLICATION_FACTOR=2
+      - WORKER_HEARTBEAT_TIMEOUT_SECONDS=10
+    volumes:
+      - controller-data:/data/controller
+    networks:
+      - cloudstore-net
+
+  worker1:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: worker1
+    ports:
+      - "8081:8080"
+    environment:
+      - WORKER_ID=worker-1
+      - WORKER_ADVERTISED_ADDRESS=http://worker1:8080
+      - MASTER_WORKER_REGISTRATION_URL=http://controller:8080/internal/workers/register
+      - MASTER_WORKER_HEARTBEAT_URL=http://controller:8080/internal/workers/heartbeat
+      - MASTER_CORRUPTION_REPORT_URL=http://controller:8080/api/v1/workers/{workerId}/chunks/corruption-reports
+      - WORKER_STORAGE_DIRECTORY=/data/worker/chunks
+      - DB_URL=jdbc:h2:file:/data/worker/metadata;DB_CLOSE_ON_EXIT=FALSE
+      - WORKER_INTEGRITY_SCAN_INTERVAL_SECONDS=15
+    volumes:
+      - worker1-data:/data/worker
+    networks:
+      - cloudstore-net
+    depends_on:
+      - controller
+
+  worker2:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: worker2
+    ports:
+      - "8082:8080"
+    environment:
+      - WORKER_ID=worker-2
+      - WORKER_ADVERTISED_ADDRESS=http://worker2:8080
+      - MASTER_WORKER_REGISTRATION_URL=http://controller:8080/internal/workers/register
+      - MASTER_WORKER_HEARTBEAT_URL=http://controller:8080/internal/workers/heartbeat
+      - MASTER_CORRUPTION_REPORT_URL=http://controller:8080/api/v1/workers/{workerId}/chunks/corruption-reports
+      - WORKER_STORAGE_DIRECTORY=/data/worker/chunks
+      - DB_URL=jdbc:h2:file:/data/worker/metadata;DB_CLOSE_ON_EXIT=FALSE
+      - WORKER_INTEGRITY_SCAN_INTERVAL_SECONDS=15
+    volumes:
+      - worker2-data:/data/worker
+    networks:
+      - cloudstore-net
+    depends_on:
+      - controller
+
+  worker3:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: worker3
+    ports:
+      - "8083:8080"
+    environment:
+      - WORKER_ID=worker-3
+      - WORKER_ADVERTISED_ADDRESS=http://worker3:8080
+      - MASTER_WORKER_REGISTRATION_URL=http://controller:8080/internal/workers/register
+      - MASTER_WORKER_HEARTBEAT_URL=http://controller:8080/internal/workers/heartbeat
+      - MASTER_CORRUPTION_REPORT_URL=http://controller:8080/api/v1/workers/{workerId}/chunks/corruption-reports
+      - WORKER_STORAGE_DIRECTORY=/data/worker/chunks
+      - DB_URL=jdbc:h2:file:/data/worker/metadata;DB_CLOSE_ON_EXIT=FALSE
+      - WORKER_INTEGRITY_SCAN_INTERVAL_SECONDS=15
+    volumes:
+      - worker3-data:/data/worker
+    networks:
+      - cloudstore-net
+    depends_on:
+      - controller
+
+  worker4:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: worker4
+    ports:
+      - "8084:8080"
+    environment:
+      - WORKER_ID=worker-4
+      - WORKER_ADVERTISED_ADDRESS=http://worker4:8080
+      - MASTER_WORKER_REGISTRATION_URL=http://controller:8080/internal/workers/register
+      - MASTER_WORKER_HEARTBEAT_URL=http://controller:8080/internal/workers/heartbeat
+      - MASTER_CORRUPTION_REPORT_URL=http://controller:8080/api/v1/workers/{workerId}/chunks/corruption-reports
+      - WORKER_STORAGE_DIRECTORY=/data/worker/chunks
+      - DB_URL=jdbc:h2:file:/data/worker/metadata;DB_CLOSE_ON_EXIT=FALSE
+      - WORKER_INTEGRITY_SCAN_INTERVAL_SECONDS=15
+    volumes:
+      - worker4-data:/data/worker
+    networks:
+      - cloudstore-net
+    depends_on:
+      - controller
+
+volumes:
+  controller-data:
+  worker1-data:
+  worker2-data:
+  worker3-data:
+  worker4-data:
+
+networks:
+  cloudstore-net:
+    driver: bridge
+
