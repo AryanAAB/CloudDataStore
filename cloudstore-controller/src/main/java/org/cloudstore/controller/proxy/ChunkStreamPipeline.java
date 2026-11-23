@@ -48,6 +48,19 @@ public class ChunkStreamPipeline
 
         if (currentChunkIndex >= maxAllowedChunks)
         {
+            int nextByte = inputStream.read();
+            if (nextByte == -1)
+            {
+                streamExhausted = true;
+                return null;
+            }
+
+            if (totalBytesRead + 1 > maxAllowedBytes)
+            {
+                throw new QuotaExceededException(
+                        "Upload exceeded declared byte budget of " + maxAllowedBytes + " bytes");
+            }
+
             throw new QuotaExceededException(
                     "Upload exceeded maximum allocated chunk count: " + maxAllowedChunks);
         }

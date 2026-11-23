@@ -81,5 +81,27 @@ class ChunkStreamPipelineTest
         // Attempting to read chunk 1 exceeds the chunk budget
         assertThrows(QuotaExceededException.class, pipeline::readNextChunk);
     }
+
+    @Test
+    void readNextChunk_exactlyFillingAllocatedChunksEndsNormally() throws IOException
+    {
+        int chunkSize = 1024;
+        int maxChunks = 2;
+        byte[] inputData = new byte[chunkSize * maxChunks];
+        Arrays.fill(inputData, (byte) 'B');
+        ChunkStreamPipeline pipeline = new ChunkStreamPipeline(
+                new ByteArrayInputStream(inputData), inputData.length, maxChunks, chunkSize);
+
+        ChunkStreamPipeline.ChunkPayload firstChunk = pipeline.readNextChunk();
+        ChunkStreamPipeline.ChunkPayload secondChunk = pipeline.readNextChunk();
+
+        assertNotNull(firstChunk);
+        assertNotNull(secondChunk);
+        assertEquals(chunkSize, firstChunk.size());
+        assertEquals(chunkSize, secondChunk.size());
+        assertNull(pipeline.readNextChunk());
+        assertEquals(inputData.length, pipeline.getTotalBytesRead());
+        assertEquals(ChunkHashUtils.sha256Hex(inputData), pipeline.getFinalFileChecksum());
+    }
 }
 
