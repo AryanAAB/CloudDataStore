@@ -1,7 +1,5 @@
 package org.cloudstore.controller.api;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.cloudstore.controller.dto.*;
 import org.cloudstore.controller.exception.ObjectNotFoundException;
@@ -19,6 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -100,9 +100,10 @@ public class ObjectStorageController
         {
             try
             {
-                customMetadata = objectMapper.readValue(metadataJson, new TypeReference<>() {});
-            }
-            catch (Exception e)
+                customMetadata = objectMapper.readValue(metadataJson, new TypeReference<>()
+                {
+                });
+            } catch (Exception e)
             {
                 LOGGER.warn("Failed to parse custom metadata JSON: {}", metadataJson);
             }
@@ -145,8 +146,7 @@ public class ObjectStorageController
             try
             {
                 mediaType = MediaType.parseMediaType(obj.getContentType());
-            }
-            catch (Exception ignored)
+            } catch (Exception ignored)
             {
             }
         }
