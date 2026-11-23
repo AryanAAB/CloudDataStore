@@ -1,1 +1,0 @@
-{"timestamp":"2026-11-23T05:07:37.168213937Z","status":503,"error":"Service Unavailable","message":"Unrecoverable data loss: all replicas for chunk obj-bd68d869-fc5_chunk_0 failed or are corrupted","path":"/api/v1/objects/obj-bd68d869-fc5"}

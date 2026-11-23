@@ -129,7 +129,7 @@ The system satisfies all 6 required evaluation demonstrations:
 curl -X POST -F "file=@files/sample.pdf" http://localhost:8080/api/v1/objects
 
 # 2. Download the file
-curl -o retrieved.pdf http://localhost:8080/api/v1/objects/<OBJECT_ID>
+curl -o files/retrieved/retrieved.pdf http://localhost:8080/api/v1/objects/<OBJECT_ID>
 
 # 3. Verify identical checksum
 sha256sum sample.pdf retrieved.pdf
@@ -165,7 +165,7 @@ docker stop worker2
 curl http://localhost:8080/api/v1/admin/cluster
 
 # 3. Download the object — succeeds immediately by falling back to the remaining replica!
-curl -o file.bin http://localhost:8080/api/v1/objects/<OBJECT_ID>
+curl -o files/retrieved/file.pdf http://localhost:8080/api/v1/objects/<OBJECT_ID>
 
 # 4. Observe self-healing: Reconciler spawns HealProxy to copy the chunk to worker-3 or worker-4:
 curl http://localhost:8080/api/v1/admin/objects/<OBJECT_ID>/topology
