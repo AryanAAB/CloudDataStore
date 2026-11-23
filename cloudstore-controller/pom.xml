@@ -50,7 +50,7 @@
             <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
         </dependency>
-    </dependencies>s
+    </dependencies>
 
     <build>
         <finalName>controller</finalName>

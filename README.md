@@ -126,7 +126,7 @@ The system satisfies all 6 required evaluation demonstrations:
 ### Demo 1: Object Storage & Retrieval
 ```bash
 # 1. Upload a file
-curl -X POST -F "file=@sample.pdf" http://localhost:8080/api/v1/objects
+curl -X POST -F "file=@files/sample.pdf" http://localhost:8080/api/v1/objects
 
 # 2. Download the file
 curl -o retrieved.pdf http://localhost:8080/api/v1/objects/<OBJECT_ID>
