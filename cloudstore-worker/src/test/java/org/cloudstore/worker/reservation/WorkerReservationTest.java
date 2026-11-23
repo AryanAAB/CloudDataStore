@@ -97,6 +97,30 @@ public class WorkerReservationTest
     }
 
     @Test
+    void closesReservationOwnedBySuppliedKey()
+    {
+        ChunkRecord existing = reservation(RESERVATION_KEY, Instant.now().plusSeconds(30L));
+        when(chunkRecords.findByFileIdAndChunkId(FILE_ID, CHUNK_ID)).thenReturn(Optional.of(existing));
+
+        boolean closed = reservationThread.close(CHUNK_ID, FILE_ID, RESERVATION_KEY);
+
+        assertThat(closed).isTrue();
+        verify(chunkRecords).delete(existing);
+    }
+
+    @Test
+    void doesNotCloseReservationOwnedByDifferentKey()
+    {
+        ChunkRecord existing = reservation(RESERVATION_KEY, Instant.now().plusSeconds(30L));
+        when(chunkRecords.findByFileIdAndChunkId(FILE_ID, CHUNK_ID)).thenReturn(Optional.of(existing));
+
+        boolean closed = reservationThread.close(CHUNK_ID, FILE_ID, "different-key");
+
+        assertThat(closed).isFalse();
+        verify(chunkRecords, never()).delete(any(ChunkRecord.class));
+    }
+
+    @Test
     void renewsAnActiveReservationWhenTheKeyMatches()
     {
         ChunkRecord existing = reservation(

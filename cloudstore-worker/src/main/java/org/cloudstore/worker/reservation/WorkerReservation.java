@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -113,6 +114,32 @@ public class WorkerReservation
         {
             return resolveConcurrentInsert(id, key, now, expiresAt);
         }
+    }
+
+    /**
+     * Removes an active reservation only when its current key matches the caller's key.
+     */
+    @Transactional
+    public boolean close(String chunkId, String fileId, String key)
+    {
+        if (identifierValidator.isInvalid(fileId)
+                || identifierValidator.isInvalid(chunkId)
+                || keyValidator.isInvalid(key))
+        {
+            return false;
+        }
+
+        Optional<ChunkRecord> reservation = chunkRecords.findByFileIdAndChunkId(fileId, chunkId);
+        if (reservation.isEmpty())
+        {
+            return true;
+        }
+        if (!keyComparisonStrategy.matches(reservation.get().getReservationKey(), key))
+        {
+            return false;
+        }
+        chunkRecords.delete(reservation.get());
+        return true;
     }
 
     /**

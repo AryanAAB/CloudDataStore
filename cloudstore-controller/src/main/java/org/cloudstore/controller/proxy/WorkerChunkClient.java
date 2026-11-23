@@ -6,7 +6,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -48,8 +47,7 @@ public class WorkerChunkClient
 
             HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
             return response.statusCode() >= 200 && response.statusCode() < 300;
-        }
-        catch (IOException | InterruptedException e)
+        } catch (IOException | InterruptedException e)
         {
             LOGGER.error("Failed to reserve chunk {} for file {} on worker at {}",
                     chunkId, fileId, workerAddress, e);
@@ -94,8 +92,7 @@ public class WorkerChunkClient
             LOGGER.warn("Worker at {} rejected chunk {} upload with status {}: {}",
                     workerAddress, chunkId, response.statusCode(), response.body());
             return false;
-        }
-        catch (IOException | InterruptedException e)
+        } catch (IOException | InterruptedException e)
         {
             LOGGER.error("Upload failed for chunk {} on worker at {}", chunkId, workerAddress, e);
             if (e instanceof InterruptedException)
@@ -103,6 +100,9 @@ public class WorkerChunkClient
                 Thread.currentThread().interrupt();
             }
             return false;
+        } finally
+        {
+            closeReservation(workerAddress, fileId, chunkId, reservationKey);
         }
     }
 
@@ -130,8 +130,7 @@ public class WorkerChunkClient
             LOGGER.warn("Failed to download chunk {} from worker at {}: status {}",
                     chunkId, workerAddress, response.statusCode());
             return null;
-        }
-        catch (IOException | InterruptedException e)
+        } catch (IOException | InterruptedException e)
         {
             LOGGER.error("Error downloading chunk {} from worker at {}", chunkId, workerAddress, e);
             if (e instanceof InterruptedException)
@@ -139,6 +138,9 @@ public class WorkerChunkClient
                 Thread.currentThread().interrupt();
             }
             return null;
+        } finally
+        {
+            closeReservation(workerAddress, fileId, chunkId, reservationKey);
         }
     }
 
@@ -160,11 +162,47 @@ public class WorkerChunkClient
 
             HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
             return response.statusCode() == 200 || response.statusCode() == 204 || response.statusCode() == 404;
-        }
-        catch (IOException | InterruptedException e)
+        } catch (IOException | InterruptedException e)
         {
             LOGGER.error("Error deleting chunk {} from worker at {}", chunkId, workerAddress, e);
             if (e instanceof InterruptedException)
+            {
+                Thread.currentThread().interrupt();
+            }
+            return false;
+        } finally
+        {
+            closeReservation(workerAddress, fileId, chunkId, reservationKey);
+        }
+    }
+
+    /**
+     * Closes a completed operation's reservation on the worker.
+     */
+    public boolean closeReservation(String workerAddress, String fileId, String chunkId, String reservationKey)
+    {
+        String url = String.format("%s%s/%s/chunks/%s/reservation",
+                workerAddress, WorkerApiConstants.API_ROOT, fileId, chunkId);
+        try
+        {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(10))
+                    .header(WorkerApiConstants.RESERVATION_KEY_HEADER, reservationKey)
+                    .DELETE()
+                    .build();
+            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            if (response.statusCode() != 204)
+            {
+                LOGGER.warn("Worker at {} did not close reservation for chunk {}: status {}",
+                        workerAddress, chunkId, response.statusCode());
+            }
+            return response.statusCode() == 204;
+        } catch (IOException | InterruptedException closeFailure)
+        {
+            LOGGER.warn("Failed to close reservation for chunk {} on worker at {}",
+                    chunkId, workerAddress, closeFailure);
+            if (closeFailure instanceof InterruptedException)
             {
                 Thread.currentThread().interrupt();
             }

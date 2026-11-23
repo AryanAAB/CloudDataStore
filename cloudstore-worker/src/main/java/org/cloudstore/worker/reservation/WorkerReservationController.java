@@ -42,4 +42,20 @@ public class WorkerReservationController
         }
         return ResponseEntity.status(HttpStatus.CONFLICT).body(result);
     }
+
+    /**
+     * Closes a reservation when the supplied key still owns it.
+     */
+    @DeleteMapping(WorkerApiConstants.CHUNK_RESERVATION_CLOSE_PATH)
+    public ResponseEntity<Void> close(
+            @PathVariable String fileId,
+            @PathVariable String chunkId,
+            @RequestHeader(name = WorkerApiConstants.RESERVATION_KEY_HEADER, required = true) String key)
+    {
+        if (!workerReservation.close(chunkId, fileId, key))
+        {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -1,0 +1,1 @@
+{"timestamp":"2026-11-23T04:39:31.752962412Z","status":503,"error":"Service Unavailable","message":"Unrecoverable data loss: all replicas for chunk obj-248040a0-40c_chunk_0 failed or are corrupted","path":"/api/v1/objects/obj-248040a0-40c"}
