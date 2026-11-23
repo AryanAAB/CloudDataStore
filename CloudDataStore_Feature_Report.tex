@@ -34,7 +34,7 @@
 \begin{document}
 \maketitle
 \begin{abstract}
-This report explains CloudDataStore as an implemented software system. It follows requests from the public REST API through the controller, metadata database, worker protocol, and chunk files. It documents replication, integrity checking, recovery, deletion, metadata, deployment, configuration, and operational boundaries. The code is publicly available on the ``main'' branch at \url{https://github.com/AryanAAB/CloudDataStore}.
+This report explains CloudDataStore as an implemented software system. It follows requests from the public REST API through the controller, metadata database, worker protocol, and chunk files. It documents replication, integrity checking, recovery, deletion, metadata, deployment, configuration, and operational boundaries. The code is publicly available at \url{https://github.com/AryanAAB/CloudDataStore}.
 \end{abstract}
 \tableofcontents
 \newpage
@@ -44,7 +44,7 @@ CloudDataStore is a small distributed object-storage service. A client sends an 
 
 The controller has two roles. Its \emph{control plane} maintains the cluster view, chooses workers, accounts for capacity, and periodically looks for under-replicated chunks. Its \emph{data plane} accepts client data, relays chunk operations to workers, verifies downloaded bytes, and runs repair copies. Workers handle durable chunk-file operations, reservation leases, local integrity scans, and liveness/corruption reporting.
 
-The implementation uses Java 21, Spring Boot, Spring Data JPA, H2 by default, and Docker Compose. The usual Compose topology is one controller and four workers. The configured replication factor is two, so each chunk is intended to have two copies on distinct workers.
+The implementation uses Java 21, Spring Boot, Spring Data JPA, H2 by default, and Docker Compose.
 
 \subsection{Vocabulary}
 \begin{description}
@@ -118,10 +118,10 @@ POST & \url{/objects} & One-step multipart facade. Requires \texttt{file}; optio
 GET & \url{/objects/\{objectId\}} & Streams committed object with stored content type, content length, attachment filename, and verified replica fallback. 200 when response starts.\\
 GET & \makecell[l]{\texttt{/objects/\{objectId\}/}\\\texttt{metadata}} & Returns object metadata and chunk locations without reading worker bytes.\\
 PATCH & \makecell[l]{\texttt{/objects/\{objectId\}/}\\\texttt{metadata}} & Merges string key/value pairs into custom metadata and updates timestamp. No worker request.\\
-DELETE & \url{/objects/\{objectId\}} & Soft-deletes, removes controller chunk/replica metadata, refunds ledger capacity, and schedules worker cleanup/tombstones. 204.\\
-GET & \url{/objects?page=0\&size=50} & Lists committed object summaries. Page nonnegative; size 1--500.\\
+DELETE & \texttt{/objects/\{objectId\}} & Soft-deletes, removes controller chunk/replica metadata, refunds ledger capacity, and schedules worker cleanup/tombstones. 204.\\
+GET & \texttt{/objects?page=0\&size=50} & Lists committed object summaries. Page nonnegative; size 1--500.\\
 GET & \texttt{/admin/cluster} & Returns worker counts/records, accounted available capacity, and committed object count.\\
-GET & \texttt{/admin/objects/\{objectId\}/topology} & Returns chunk replicas, worker addresses/states, and live healthy replica counts.\\
+GET & \makecell[l]{\texttt{/admin/objects/}\\\texttt{\{objectId\}/topology}} & Returns chunk replicas, worker addresses/states, and live healthy replica counts.\\
 \bottomrule
 \end{longtable}
 The detailed object response contains ID/name/size/type, whole-object checksum, chunk count, status, timestamps, custom metadata, and chunk summaries (ID, index, size, digest, healthy worker IDs). Listing uses smaller summaries. The implementation loads committed objects and slices them in memory rather than using database-level pagination.
