@@ -1,0 +1,246 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=25mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{makecell}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xurl}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\hypersetup{colorlinks=true,linkcolor=blue!55!black,urlcolor=blue!55!black,pdftitle={CloudDataStore Feature and Architecture Report},pdfauthor={CloudDataStore project documentation}}
+\setlist{nosep,leftmargin=*}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\setlength{\LTleft}{0pt}
+\setlength{\LTright}{0pt}
+\setlength{\tabcolsep}{3pt}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{CloudDataStore}
+\rhead{Feature and Architecture Report}
+\cfoot{\thepage}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single,columns=fullflexible,backgroundcolor=\color{gray!5},showstringspaces=false}
+\title{\textbf{CloudDataStore}\\[0.35em]\large Detailed Feature, Architecture, and Operation Report}
+\author{Prepared from the repository implementation}
+\date{23 November 2026}
+\setlength{\headheight}{13.59999pt}
+\begin{document}
+\maketitle
+\begin{abstract}
+This report explains CloudDataStore as an implemented software system. It follows requests from the public REST API through the controller, metadata database, worker protocol, and chunk files. It documents replication, integrity checking, recovery, deletion, metadata, deployment, configuration, and operational boundaries. Descriptions are grounded in repository source and configuration; differences between README claims and implemented behavior are identified explicitly. The code is publicly available at \url{https://github.com/AryanAAB/CloudDataStore}.
+\end{abstract}
+\tableofcontents
+\newpage
+
+\section{What the System Does}
+CloudDataStore is a small distributed object-storage service. A client sends an object to one controller service. The controller divides the byte stream into fixed-size chunks, calculates SHA-256 digests, and stores copies of each chunk on separate storage-worker processes. The controller keeps the object catalogue, chunk map, replica map, worker state, upload-session state, and deletion tombstones in a relational database. A worker stores chunk bytes as files and stores their local file metadata in its own database.
+
+The controller has two roles. Its \emph{control plane} maintains the cluster view, chooses workers, accounts for capacity, and periodically looks for under-replicated chunks. Its \emph{data plane} accepts client data, relays chunk operations to workers, verifies downloaded bytes, and runs repair copies. Workers handle durable chunk-file operations, reservation leases, local integrity scans, and liveness/corruption reporting.
+
+The implementation uses Java 21, Spring Boot, Spring Data JPA, H2 by default, and Docker Compose. The usual Compose topology is one controller and four workers. The configured replication factor is two, so each chunk is intended to have two copies on distinct workers.
+
+\subsection{Vocabulary}
+\begin{description}
+\item[Object] The client-visible file or binary payload. It has an ID, name, content type, byte length, whole-object checksum, custom metadata, and ordered chunks.
+\item[Chunk] A contiguous piece of an object. Default size is 1,048,576 bytes (1 MiB); the final chunk may be shorter. A zero-byte upload is represented by one empty chunk by the stream pipeline.
+\item[Replica] One worker's copy of a chunk. The controller records worker ID and state, normally \texttt{OK}, possibly \texttt{CORRUPT}.
+\item[Reservation] A worker-side, keyed lease authorizing an operation on one object/chunk pair. It prevents unrelated active operations from taking over and expires unless renewed.
+\item[Controller/master] The public API and coordinator, listening on port 8080 in Compose.
+\item[Worker] A storage process exposing internal chunk endpoints, normally on container port 8080.
+\end{description}
+
+\section{Repository and Runtime Shape}
+The root Maven POM aggregates three modules:
+\begin{itemize}
+\item \texttt{cloudstore-common}: worker protocol DTOs, shared path/header constants, and SHA-256 helpers.
+\item \texttt{cloudstore-worker}: storage-worker application, local chunk metadata, and chunk files.
+\item \texttt{cloudstore-controller}: public APIs, cluster coordination, object metadata, and upload/download/repair orchestration.
+\end{itemize}
+The Dockerfiles use Maven/Java 21 builder stages and Java 21 JRE runtime stages. Compose maps host port 8080 to controller port 8080 and ports 8081--8084 to the four worker container ports 8080. Named volumes persist controller metadata and each worker's local data independently. Containers join a bridge network; workers address the controller as \texttt{controller:8080}.
+
+Default controller and worker databases are file-backed H2. Controller metadata is written under \texttt{./data/controller} (or \texttt{/data/controller} in Compose); each worker has its own metadata database and stores bytes under \texttt{/data/worker/chunks}. Hibernate uses \texttt{ddl-auto=update}; schema changes are applied on startup rather than through an external migration system.
+
+\section{Architecture and Responsibilities}
+\subsection{Controller control plane}
+\begin{itemize}
+\item \texttt{WorkerRegistryService} accepts registrations and heartbeats, retains address and last-heartbeat time, and marks stale workers down.
+\item \texttt{StorageAccountingService} reserves or refunds bytes in the controller's per-worker capacity ledger.
+\item \texttt{PlacementEngine} chooses distinct live workers with sufficient accounted free capacity.
+\item \texttt{ReconcilerService} periodically counts live healthy replicas and starts repairs for deficits.
+\item JPA entities and repositories persist the cluster's control metadata.
+\end{itemize}
+\subsection{Controller data plane}
+\texttt{ObjectStorageController} is the public REST facade. \texttt{UProxyService} implements lifecycle and stream orchestration. \texttt{ChunkStreamPipeline} reads the stream incrementally, computes per-chunk and whole-object hashes, and applies byte/chunk limits. \texttt{WorkerChunkClient} sends HTTP calls to workers. \texttt{HealProxy} performs background copies. Virtual-thread executors support parallel worker writes, deletion dispatches, and repairs.
+\subsection{Worker responsibilities}
+Workers expose reservation, upload, download, delete, and paginated inventory endpoints. They validate identifiers and reservation keys, keep lease records in a database, stream uploads into temporary files, validate bytes against declared size and digest, and then install completed files and metadata. Workers send heartbeats and run bounded local integrity scans.
+
+\section{Data Model and Persistence}
+\begin{longtable}{p{0.20\linewidth}p{0.75\linewidth}}
+\toprule \textbf{Record} & \textbf{Purpose and key fields}\\ \midrule
+\endhead
+\texttt{StoredObject} & Object ID, name, size, media type, whole-object checksum, chunk count, status, timestamps, and custom string map. New records are \texttt{PENDING}; successful uploads become \texttt{COMMITTED}; deletion marks \texttt{DELETED}.\\
+\texttt{UploadSession} & Session ID and secret key, object ID, declared size, name/type, expected chunk count, next expected index, status, expiry, and custom metadata. Statuses include \texttt{INITIATED}, \texttt{STREAMING}, \texttt{COMMITTED}, \texttt{EXPIRED}, and \texttt{ABORTED}.\\
+\texttt{ChunkRecord} & Chunk ID, owning object ID, zero-based index, actual bytes, and expected SHA-256 digest. IDs are formed from object ID and index.\\
+\texttt{ChunkReplica} & Chunk ID, worker ID, replica state, and last-verified time. States include \texttt{OK}, \texttt{CORRUPT}, and \texttt{MISSING}.\\
+\texttt{WorkerNode} & Worker ID/address, UP/DOWN status, last heartbeat, total capacity, and controller-accounted unassigned capacity.\\
+\texttt{PendingDeletion} & Tombstone identifying worker, object, and chunk that still needs purging.\\
+\bottomrule
+\end{longtable}
+Each worker separately stores reservation rows and chunk-file metadata: logical object/chunk IDs, local path, size, digest, and integrity-check timestamp. The bytes live in the filesystem; metadata maps the logical chunk to a generated file. Replacements write a new file and commit metadata, cleaning the new file if metadata fails. Deletion stages the file, removes metadata transactionally, and restores the file if that transaction fails.
+
+The controller database is the logical placement catalogue; a worker database indexes its own files. These databases are separate and are not participants in one distributed transaction.
+
+\section{Chunking, Hashing, and Capacity}
+The controller defaults to 1 MiB chunks, configurable with \texttt{CHUNK\_SIZE\_BYTES}. The pipeline reads up to one chunk into memory at a time, using an 8 KiB read buffer internally. It updates a whole-object SHA-256 digest as bytes arrive and calculates a separate SHA-256 per chunk. Digests are hexadecimal and use the common \texttt{ChunkHashUtils} implementation.
+
+Upload initiation derives expected chunk count from declared length (ceiling of size/chunk size; one for an empty object). The pipeline enforces declared byte budget and allocated chunk count; extra content raises \texttt{QuotaExceededException}, mapped to HTTP 413. The pre-flight estimate multiplies expected chunk count by full chunk size and replication factor, so a partial last chunk is conservatively budgeted. Individual worker reservations use the actual chunk byte count.
+
+Placement considers workers that are UP, not excluded for this chunk, and have enough ledger capacity. Candidates are sorted by remaining capacity descending; the first N are selected. Default N is 2, configurable through \texttt{CLUSTER\_REPLICATION\_FACTOR}. If reservation or upload fails on a chosen worker, replacement workers are attempted until N successes or no candidate remains.
+
+Capacity is controller-side bookkeeping, not a live disk measurement. A new worker receives the configured default capacity (10 GiB by default); registration and heartbeat messages do not report filesystem free space. Failed writes refund reserved capacity; successful replica capacity is refunded on object deletion.
+
+\section{Public Client API}
+All client endpoints are rooted at \texttt{/api/v1}.
+\begin{longtable}{p{0.08\linewidth}p{0.35\linewidth}p{0.50\linewidth}}
+\toprule \textbf{Method} & \textbf{Path} & \textbf{Behavior}\\ \midrule
+\endhead
+POST & \url{/objects/sessions} & Starts two-step upload. Body describes name, size, content type, optional string metadata. Returns object ID, session ID/key, chunk size/count, data URL, and expiry. 201.\\
+PUT & \makecell[l]{\texttt{/objects/sessions/}\\\texttt{\{sessionId\}/data}} & Streams raw bytes; requires \texttt{X-Session-Key}. Returns committed object DTO. 201.\\
+GET & \makecell[l]{\texttt{/objects/sessions/}\\\texttt{\{sessionId\}}} & Returns session status, object ID, expected chunks, next expected index, and expiry. 200.\\
+POST & \url{/objects} & One-step multipart facade. Requires \texttt{file}; optional \texttt{metadata} JSON string map. Internally initiates and streams a session. 201.\\
+GET & \url{/objects/\{objectId\}} & Streams committed object with stored content type, content length, attachment filename, and verified replica fallback. 200 when response starts.\\
+GET & \makecell[l]{\texttt{/objects/\{objectId\}/}\\\texttt{metadata}} & Returns object metadata and chunk locations without reading worker bytes.\\
+PATCH & \makecell[l]{\texttt{/objects/\{objectId\}/}\\\texttt{metadata}} & Merges string key/value pairs into custom metadata and updates timestamp. No worker request.\\
+DELETE & \url{/objects/\{objectId\}} & Soft-deletes, removes controller chunk/replica metadata, refunds ledger capacity, and schedules worker cleanup/tombstones. 204.\\
+GET & \url{/objects?page=0\&size=50} & Lists committed object summaries. Page nonnegative; size 1--500.\\
+GET & \texttt{/admin/cluster} & Returns worker counts/records, accounted available capacity, and committed object count.\\
+GET & \texttt{/admin/objects/\{objectId\}/topology} & Returns chunk replicas, worker addresses/states, and live healthy replica counts.\\
+\bottomrule
+\end{longtable}
+The detailed object response contains ID/name/size/type, whole-object checksum, chunk count, status, timestamps, custom metadata, and chunk summaries (ID, index, size, digest, healthy worker IDs). Listing uses smaller summaries. The implementation loads committed objects and slices them in memory rather than using database-level pagination.
+
+\subsection{Error behavior}
+The global handler returns an error DTO with timestamp, status number/reason, message, and path. Explicit mappings: object-not-found 404; quota overflow 413; storage unavailable 503; illegal argument 400; illegal state 409; unhandled exceptions 500. Worker validation endpoints can return 400 or 409 directly.
+
+\section{Upload Lifecycle}
+\subsection{Pre-flight and session allocation}
+The controller checks for at least N active workers, computes expected chunk count, and compares aggregate unassigned capacity with a conservative full-chunk estimate. It creates a \texttt{PENDING} object and session with random IDs and a secret key. Default session lifetime is 600 seconds. The response gives the client the key required for the data request.
+\subsection{Stream, distribute, and commit}
+The controller looks up the session by both ID and key. An expired session is marked expired; otherwise status becomes \texttt{STREAMING}. For each pipeline chunk, it creates a deterministic chunk ID, chooses distinct workers, concurrently tries the initial writes, and for each worker reserves ledger bytes, creates a worker reservation, and uploads bytes with expected size and SHA-256 headers. It retries failed placements on replacement workers, persists one chunk record and successful replica records, and advances the session's next index. At stream end, actual byte count and whole-object checksum are stored, object becomes \texttt{COMMITTED}, and session becomes \texttt{COMMITTED}. The worker independently verifies each chunk before installing it.
+
+The multipart endpoint wraps the same flow. If optional metadata cannot be parsed, it warns and continues with empty metadata.
+\subsection{Resumability boundary}
+Session state and a next-index field are persisted, but the stream handler constructs a fresh pipeline at the start of each request and does not accept an offset/chunk index or acknowledged chunk replay protocol. Therefore, this is an expiring two-step upload handshake with progress/status tracking, not safe byte-range or chunk-level resume semantics. The pipeline enforces an upper size limit, but commit does not require final bytes read to equal declared size; a shorter stream can be committed with actual length and checksum.
+
+\section{Worker API and Reservation Safety}
+Worker endpoints share prefix \texttt{/worker/files}; operations use \texttt{X-Reservation-Key}.
+\begin{itemize}
+\item \texttt{PUT /\{fileId\}/chunks/\{chunkId\}/reservation}: create/renew a reservation.
+\item \texttt{DELETE /\{fileId\}/chunks/\{chunkId\}/reservation}: close it if caller still owns it.
+\item \texttt{PUT /\{fileId\}/chunks/\{chunkId\}/upload}: receive octet stream plus expected-size and expected-SHA-256 headers.
+\item \texttt{GET /\{fileId\}/chunks/\{chunkId\}}: reserve and stream an existing chunk.
+\item \texttt{DELETE /\{fileId\}/chunks/\{chunkId\}}: reserve and delete a chunk.
+\item \texttt{GET /chunks?page=0\&size=...}: page through local inventory metadata.
+\end{itemize}
+Keys and IDs are validated and length-limited. Matching keys renew a lease; by default, a different key is rejected while an existing lease is active and can be accepted after expiry. A configurable strategy governs renewals. Long uploads/downloads refresh leases; a cleaner removes expired reservation records. The controller closes reservations in a finally path. These leases authorize/serialize chunk operations; they are separate from capacity accounting and do not guarantee physical disk quota.
+
+Uploads stream into a temporary file, check byte count and digest, verify lease ownership, then install file and metadata. Downloads stream directly from a file while renewing the lease. Deletes remove bytes and metadata. Missing chunks return 404; controller treats 404 as successful idempotent deletion.
+
+\section{Download and Integrity Verification}
+The public route requires a committed object. It fetches chunks in index order and tries replicas in turn: skip missing/down workers; request a chunk with a fresh reservation key; skip failed fetches; hash returned bytes and compare to the controller chunk record; mark mismatch \texttt{CORRUPT} and continue; append the first verified copy. If no reachable valid replica remains, storage unavailable is returned. This check runs on each controller-mediated download, in addition to worker background scans.
+
+The worker scanner checks local files against metadata size and digest. It processes an oldest-first bounded batch (default every 300 seconds, batch size 50; Compose sets interval to 15 seconds), updates check timestamps, and reports corruption to the controller. The controller marks the matching replica corrupt. Reports carry health information, not replacement chunk bytes.
+
+\section{Registration and Failure Detection}
+On startup, a worker registers its ID and advertised address at \texttt{POST /internal/workers/register}. It sends heartbeats every 10 seconds by default. If a heartbeat fails, it considers itself unregistered and attempts registration on its next scheduled send. The controller records heartbeat time. A watchdog scans every 2 seconds and marks an UP worker DOWN after 10 seconds without heartbeat. A later heartbeat or registration returns it to UP; reconnect events trigger pending deletion retries.
+
+DOWN workers are excluded from placements, skipped in download attempts, and ignored when counting live healthy replicas. Failure detection is based on heartbeat timestamps, not active probes of each chunk endpoint.
+
+\section{Replication, Repair, and Topology}
+\subsection{Initial replication}
+Each chunk is written to N distinct workers concurrently. When an initial write fails, the controller tries workers not already attempted until it obtains N successes or runs out of candidates. If it cannot reach the required count, upload fails as storage unavailable rather than committing that chunk as fully replicated.
+\subsection{Periodic reconciliation}
+Every 5 seconds by default, the reconciler scans committed objects and their chunks. It counts replicas whose metadata is healthy and whose worker is UP. If the count is below N and at least one valid live source exists, it starts a repair. A concurrent set prevents duplicate repairs for a chunk within this controller process. If there are zero live healthy sources, it logs a critical condition and waits; no data can be reconstructed without a valid source.
+\subsection{Repair operation}
+\texttt{HealProxy} reads from a live healthy source and verifies SHA-256. It marks bad source replicas corrupt and continues searching. It excludes workers already holding a live healthy copy, selects a replacement with capacity, reserves ledger bytes and a worker lease, uploads verified bytes, and saves or resets a replica row to \texttt{OK}. Failed operations refund target capacity and permit a later retry.
+\subsection{Topology}
+The topology response reports required replication, chunk index/size/digest, live healthy copy count, and each known replica's worker ID/address, replica state, and worker status. It is a view of controller metadata and heartbeat state; it does not synchronously hash each replica. A row marked OK can later prove corrupted or unreachable.
+
+\section{Metadata, Listing, and Deletion}
+Custom metadata is a string-to-string map. It is copied from initiation to object/session. Retrieval reads controller metadata only. PATCH merges: supplied keys overwrite, omitted keys remain; no explicit key deletion endpoint is shown. Timestamp is updated.
+
+Listing includes committed objects only and returns ID, name, size, content type, and creation time. Pending and deleted records are excluded.
+
+Deletion marks the object DELETED, refunds the recorded chunk size to each replica worker's ledger, removes replica and chunk records, and dispatches remote deletion asynchronously. For a down worker or failed delete, it stores a tombstone. On reconnect, pending tombstones are retried and removed only after success (404 is considered success by the HTTP client). Thus HTTP 204 confirms logical deletion and scheduling, not completion of every physical file purge. Capacity is refunded immediately. Controller and worker operations are not one distributed transaction, so abrupt failures across metadata change, refunds, dispatch, and tombstone persistence are a durability boundary.
+
+\section{Configuration Reference}
+\begin{longtable}{p{0.34\linewidth}p{0.12\linewidth}p{0.45\linewidth}}
+\toprule \textbf{Setting} & \textbf{Default} & \textbf{Meaning}\\ \midrule
+\endhead
+\texttt{PORT} & 8080 & HTTP port.\\
+\texttt{DB\_URL} & file H2 & Per-process metadata database.\\
+\texttt{CLUSTER\_REPLICATION\_FACTOR} & 2 & Desired distinct chunk copies.\\
+\makecell[l]{\texttt{WORKER\_HEARTBEAT\_}\\\texttt{TIMEOUT\_SECONDS}} & 10 & Stale-worker threshold.\\
+\makecell[l]{\texttt{WORKER\_WATCHDOG\_}\\\texttt{INTERVAL\_MS}} & 2000 & Liveness scan frequency.\\
+\makecell[l]{\texttt{DEFAULT\_WORKER\_}\\\texttt{CAPACITY\_BYTES}} & 10 GiB & Ledger capacity assigned on first registration.\\
+\texttt{SESSION\_TTL\_SECONDS} & 600 & Upload session lifetime.\\
+\makecell[l]{\texttt{SESSION\_BUFFER\_}\\\texttt{MAX\_CHUNKS}} & 5 & Declared setting; upload path passes session total chunk count to pipeline, so this property is not the active path's chunk-count limit.\\
+\texttt{CHUNK\_SIZE\_BYTES} & 1 MiB & Chunk size.\\
+\makecell[l]{\texttt{MAX\_FILE\_SIZE},\\\texttt{MAX\_REQUEST\_SIZE}} & 10 GB & Spring multipart limits.\\
+\makecell[l]{\texttt{WORKER\_STORAGE\_}\\\texttt{DIRECTORY}} & \makecell[l]{\texttt{./data/}\\\texttt{worker/}\\\texttt{chunks}} & Worker byte-file root.\\
+\texttt{RESERVATION\_TTL\_SECONDS} & 60 & Worker lease lifetime.\\
+\makecell[l]{\texttt{RESERVATION\_CLEANER\_}\\\texttt{INTERVAL\_SECONDS}} & 10 & Expired lease cleanup interval.\\
+\makecell[l]{\texttt{RESERVATION\_KEY\_}\\\texttt{RENEWAL\_POLICY}} & \makecell[l]{\texttt{after-}\\\texttt{expiration}} & Policy for replacement reservation keys.\\
+\makecell[l]{\texttt{MASTER\_WORKER\_}\\\texttt{HEARTBEAT\_INTERVAL\_SECONDS}} & 10 & Heartbeat frequency.\\
+\makecell[l]{\texttt{WORKER\_INTEGRITY\_SCAN\_}\\\texttt{INTERVAL\_SECONDS}} & 300 & Worker scan delay; Compose overrides to 15.\\
+\makecell[l]{\texttt{WORKER\_INTEGRITY\_SCAN\_}\\\texttt{BATCH\_SIZE}} & 50 & Local rows checked per scan.\\
+\makecell[l]{\texttt{WORKER\_INVENTORY\_}\\\texttt{DEFAULT\_PAGE\_SIZE}} & 100 & Inventory default page size.\\
+\makecell[l]{\texttt{WORKER\_INVENTORY\_}\\\texttt{MAXIMUM\_PAGE\_SIZE}} & 500 & Inventory maximum page size.\\
+\bottomrule
+\end{longtable}
+The controller reconciler interval is configurable as \texttt{controller.reconciler.interval-ms}, default 5000. Worker validation defaults cap identifier/key lengths at 255/128 characters. Integrity buffer defaults to 8192 bytes. Worker heartbeat scheduling has configurable pool size and thread-name prefix.
+
+\section{Running and Exploring the Features}
+Prerequisites documented by the repository are Java 21+, Maven 3.9+, Docker, and Docker Compose. Start the cluster from the repository root:
+\begin{lstlisting}[language=bash]
+docker compose up --build -d
+\end{lstlisting}
+Inspect \texttt{GET http://localhost:8080/api/v1/admin/cluster}; upload through multipart or sessions; use the resulting object ID for metadata, download, delete, and topology endpoints. Compose services are \texttt{worker1}--\texttt{worker4}, exposed on host ports 8081--8084. README demonstrations cover file round trip, chunk topology, metadata patch, worker stop/restart, and manual corruption. For local packaging, documented command is \texttt{mvn clean package -DskipTests}; artifacts are \texttt{cloudstore-worker/target/worker.jar} and \texttt{cloudstore-controller/target/controller.jar}. Docker builds also skip tests.
+
+\section{Implemented Boundaries and Caveats}
+\begin{enumerate}
+\item \textbf{Upload sessions are not full resumable uploads.} Status and next-index fields are persisted, but the data route starts a new stream at byte zero and has no resume offset or idempotent chunk-retry API.
+\item \textbf{Declared size is an upper bound.} Extra bytes are rejected; shorter content is committed using actual size/checksum because the service does not enforce equality with declared size.
+\item \textbf{Capacity is a ledger.} Worker registration does not send actual free disk measurements.
+\item \textbf{Topology is metadata-based.} It reports recorded state and heartbeat-derived health, not an on-demand byte audit.
+\item \textbf{Repair needs a valid source.} No live valid replica means the reconciler waits for recovery.
+\item \textbf{Deletion response precedes worker purge.} Logical deletion and quota refund are synchronous; physical cleanup is asynchronous or waits for reconnection.
+\item \textbf{Listing is sliced in memory.} The implementation loads committed rows before applying page/size offsets.
+\item \textbf{Inventory is worker-local.} A worker exposes paginated local chunk metadata. The controller paths examined do not use it as reconciliation input; reconciliation uses controller chunk/replica rows.
+\item \textbf{No general client identity layer is visible in the inspected API.} Session and reservation keys guard specific operations but are not user/tenant authentication and authorization.
+\end{enumerate}
+
+\section{Source Map}
+\begin{itemize}
+\item Public REST and exceptions: \nolinkurl{cloudstore-controller/src/main/java/org/cloudstore/controller/api/}
+\item Upload/download and worker client: \nolinkurl{cloudstore-controller/src/main/java/org/cloudstore/controller/proxy/}
+\item Registry, capacity, placement, reconciliation, deletion: \nolinkurl{cloudstore-controller/src/main/java/org/cloudstore/controller/master/}
+\item Controller entities/repositories: \nolinkurl{cloudstore-controller/src/main/java/org/cloudstore/controller/model/} and \texttt{repository/}
+\item Worker HTTP endpoints and behaviors: \nolinkurl{cloudstore-worker/src/main/java/org/cloudstore/worker/}
+\item Worker file storage, metadata, reservations, integrity: worker \texttt{storage/}, \texttt{data/}, \texttt{reservation/}, and \texttt{integrity/}
+\item Shared hashes, DTOs, protocol constants: \texttt{cloudstore-common/src/main/java/org/cloudstore/common/}
+\item Runtime defaults: module \texttt{application.properties}, root Compose file, and Dockerfiles.
+\end{itemize}
+
+\section{End-to-End Mental Model}
+The client talks only to the controller. The controller makes an object committed after it streams all bytes, writes chunks to the required number of workers, and records hashes and locations. A later download follows that map, validates each returned chunk, and falls back across replicas. Heartbeats determine which workers are trusted for new placement and immediate reads. Reconciliation copies verified bytes to restore the target replica count when possible. Worker scans discover disk corruption independently and report it. Deletion removes the object's catalogue entries promptly, refunds capacity, and schedules physical cleanup, keeping tombstones for unavailable workers.
+
+The core design is: the controller owns the logical map and orchestration; workers own physical chunk bytes; SHA-256 ties the two together; replica copies provide availability; background processes attempt to restore the desired state after failure.
+\end{document}
