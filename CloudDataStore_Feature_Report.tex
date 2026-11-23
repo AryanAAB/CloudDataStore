@@ -34,13 +34,13 @@
 \begin{document}
 \maketitle
 \begin{abstract}
-This report explains CloudDataStore as an implemented software system. It follows requests from the public REST API through the controller, metadata database, worker protocol, and chunk files. It documents replication, integrity checking, recovery, deletion, metadata, deployment, configuration, and operational boundaries. Descriptions are grounded in repository source and configuration; differences between README claims and implemented behavior are identified explicitly. The code is publicly available at \url{https://github.com/AryanAAB/CloudDataStore}.
+This report explains CloudDataStore as an implemented software system. It follows requests from the public REST API through the controller, metadata database, worker protocol, and chunk files. It documents replication, integrity checking, recovery, deletion, metadata, deployment, configuration, and operational boundaries. The code is publicly available at \url{https://github.com/AryanAAB/CloudDataStore}.
 \end{abstract}
 \tableofcontents
 \newpage
 
 \section{What the System Does}
-CloudDataStore is a small distributed object-storage service. A client sends an object to one controller service. The controller divides the byte stream into fixed-size chunks, calculates SHA-256 digests, and stores copies of each chunk on separate storage-worker processes. The controller keeps the object catalogue, chunk map, replica map, worker state, upload-session state, and deletion tombstones in a relational database. A worker stores chunk bytes as files and stores their local file metadata in its own database.
+CloudDataStore is a small distributed object-storage service. A client sends an object to one controller service. The controller divides the byte stream into fixed-size chunks, calculates SHA-256 digests, and stores copies of each chunk on separate storage-worker processes. The controller keeps the object catalog, chunk map, replica map, worker state, upload-session state, and deletion tombstones in a relational database. A worker stores chunk bytes as files and stores their local file metadata in its own database.
 
 The controller has two roles. Its \emph{control plane} maintains the cluster view, chooses workers, accounts for capacity, and periodically looks for under-replicated chunks. Its \emph{data plane} accepts client data, relays chunk operations to workers, verifies downloaded bytes, and runs repair copies. Workers handle durable chunk-file operations, reservation leases, local integrity scans, and liveness/corruption reporting.
 
