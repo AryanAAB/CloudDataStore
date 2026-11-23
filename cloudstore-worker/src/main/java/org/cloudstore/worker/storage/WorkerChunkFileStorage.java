@@ -10,6 +10,7 @@ import org.cloudstore.worker.upload.constants.WorkerChunkUploadMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -189,6 +190,7 @@ public class WorkerChunkFileStorage
     /**
      * Opens a stored chunk for streaming, returning empty when no metadata exists.
      */
+    @Transactional(readOnly = true)
     public Optional<ChunkReadHandle> openForRead(String fileId, String chunkId) throws IOException
     {
         Optional<ChunkFileMetadata> metadata = metadataRepository.findByFileIdAndChunkId(fileId, chunkId);
